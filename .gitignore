@@ -9,14 +9,33 @@ dist/
 build/
 expo-env.d.ts
 
-# Android / iOS generated folders
-android/
+# ---------- ANDROID: keep the project, ignore generated stuff ----------
+# Keep android/ in repo, but ignore build outputs and local machine files
+android/.gradle/
+android/.idea/
+android/local.properties
+android/captures/
+android/**/build/
+android/**/intermediates/
+android/**/generated/
+android/**/release/
+android/**/outputs/**/*.apk
+android/**/outputs/**/*.aab
+android/app/*.keystore
+android/app/*.jks
+android/app/*.keystore.*
+# Keep Gradle wrapper files tracked (DO NOT ignore these):
+# android/gradlew
+# android/gradlew.bat
+# android/gradle/wrapper/gradle-wrapper.jar
+# android/gradle/wrapper/gradle-wrapper.properties
+
+# ---------- iOS (optional; keep ignored if you’re not tracking iOS) ----------
 ios/
 
-# Native
+# Native misc
 .kotlin/
 *.orig.*
-*.jks
 *.p8
 *.p12
 *.key

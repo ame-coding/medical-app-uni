@@ -1,52 +1,57 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { dbPromise } from "../db.js";
+import sqlite3 from "sqlite3";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const router = Router();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const dbPath = path.resolve(__dirname, "../dbfiles/app.db");
+const db = new sqlite3.Database(dbPath, (err) => {
+  if (err) console.error("Failed to open database:", err.message);
+  else console.log("Connected to SQLite database (loginapi)");
+});
 
-/**
- * POST /login
- * Body: { username, password }
- * On success -> sets session cookie, returns { ok:true, username }
- */
-router.post("/login", async (req, res) => {
+// POST /login -> bcrypt check against app.db, sets cookie with {username, role}
+router.post("/login", (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) {
-    return res.status(400).json({ ok: false, message: "Missing credentials" });
+    return res.status(400).json({ ok: false, message: "username and password are required" });
   }
+  db.get("SELECT username, role, password_hash FROM users WHERE username = ?", [username], (err, row) => {
+    if (err) return res.status(500).json({ ok: false, message: "DB error" });
+    if (!row) return res.status(401).json({ ok: false, message: "Invalid credentials" });
 
-  const db = await dbPromise;
-  const row = await db.get("SELECT * FROM users WHERE username = ?", [username]);
-  if (!row) return res.status(401).json({ ok: false, message: "Invalid credentials" });
+    const valid = bcrypt.compareSync(password, row.password_hash);
+    if (!valid) return res.status(401).json({ ok: false, message: "Invalid credentials" });
 
-  const match = await bcrypt.compare(password, row.password_hash);
-  if (!match) return res.status(401).json({ ok: false, message: "Invalid credentials" });
-
-  // Attach to session
-  req.session.user = { id: row.id, username: row.username };
-  res.json({ ok: true, username: row.username });
-});
-
-/**
- * GET /me
- * Returns current session user if logged in
- */
-router.get("/me", (req, res) => {
-  if (req.session?.user) {
-    return res.json({ ok: true, user: req.session.user });
-  }
-  res.status(401).json({ ok: false });
-});
-
-/**
- * POST /logout
- * Destroys session
- */
-router.post("/logout", (req, res) => {
-  req.session.destroy(() => {
-    res.clearCookie("sid");
-    res.json({ ok: true });
+    res.cookie("user", JSON.stringify({ username: row.username, role: row.role }), {
+      httpOnly: false,
+      sameSite: "lax",
+      maxAge: 1000 * 60 * 60 * 24 * 7
+    });
+    res.json({ ok: true, user: { username: row.username, role: row.role } });
   });
+});
+
+// GET /me -> returns cookie identity
+router.get("/me", (req, res) => {
+  try {
+    const raw = req.cookies?.user;
+    if (!raw) return res.status(401).json({ ok: false });
+    const user = JSON.parse(raw);
+    if (!user?.username) return res.status(401).json({ ok: false });
+    res.json({ ok: true, user });
+  } catch {
+    res.status(401).json({ ok: false });
+  }
+});
+
+// POST /logout -> clear cookie
+router.post("/logout", (_req, res) => {
+  res.clearCookie("user");
+  res.json({ ok: true });
 });
 
 export default router;
