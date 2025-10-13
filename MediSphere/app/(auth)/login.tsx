@@ -1,19 +1,22 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, Button, StyleSheet, Alert } from "react-native";
 import { router } from "expo-router";
+import { saveToken, clearToken } from "../../lib/auth";
+import { useAuth } from "../../providers/AuthProvider";
 
 const BASE = "http://192.168.1.100:4000";
 
 export default function LoginScreen() {
+  const { refresh } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [quote, setQuote] = useState<string | null>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     (async () => {
       try {
-        const r = await fetch(`${BASE}/quote`, { credentials: "include" });
+        const r = await fetch(`${BASE}/quote`);
         const data = await r.json();
         setQuote(data?.quote ?? null);
       } catch {}
@@ -21,23 +24,25 @@ export default function LoginScreen() {
   }, []);
 
   const onLogin = async () => {
-    if (!username || !password) {
-      return Alert.alert("Missing", "Enter username and password");
-    }
+    if (!username || !password) return Alert.alert("Missing", "Enter username and password");
     setSubmitting(true);
     try {
       const res = await fetch(`${BASE}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password }),
       });
       const data = await res.json();
-      if (!res.ok || !data?.ok) {
-        return Alert.alert("Login failed", data?.message || "Invalid credentials");
+      if (!res.ok || !data?.token) {
+        return Alert.alert("Login failed", data?.message || "Invalid username/password");
       }
-      router.replace("/(tabs)");
-    } catch (e) {
+
+      // HARD RESET then set the new token to prevent stale admin tokens
+      await clearToken();
+      await saveToken(data.token);
+      await refresh();              // ensure context now has correct {username, role}
+      router.replace("/(tabs)");    // then navigate
+    } catch {
       Alert.alert("Network error", "Could not reach server");
     } finally {
       setSubmitting(false);
