@@ -1,42 +1,37 @@
 import React from "react";
+import { View, Text } from "react-native";
 import { Tabs } from "expo-router";
-import { Text } from "react-native";
+import { useAuth } from "../../providers/AuthProvider";
 
-const BASE = "http://192.168.1.100:4000";
+export default function TabsLayout() {
+  const { user, loading } = useAuth();
 
-export default function TabLayout() {
-  const [role, setRole] = React.useState<"admin" | "user" | null>(null);
-  const [loading, setLoading] = React.useState(true);
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <Text>Loading session...</Text>
+      </View>
+    );
+  }
 
-  React.useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const r = await fetch(`${BASE}/me`, { credentials: "include" });
-        if (!r.ok) {
-          // redirect to login if not logged in
-          // This simplistic redirect may be adapted to your router setup
-          return;
-        }
-        const data = await r.json();
-        if (mounted) setRole(data?.user?.role ?? "user");
-      } catch {
-        if (mounted) setRole("user");
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, []);
-
-  if (loading) return <Text style={{ marginTop: 60, textAlign: "center" }}>Loading...</Text>;
+  const isAdmin = (user?.role ?? "user").toLowerCase() === "admin";
 
   return (
     <Tabs>
-      <Tabs.Screen name="index" options={{ title: "Home" }} />
-      {role === "admin" ? (
-        <Tabs.Screen name="admin" options={{ title: "Admin" }} />
-      ) : null}
+      <Tabs.Screen name="home" options={{ title: "Home" }} />
+      <Tabs.Screen name="records" options={{ title: "Records" }} />
+      <Tabs.Screen name="reminders" options={{ title: "Reminders" }} />
+
+      {/* Conditionally hide the admin tab using href: null */}
+      <Tabs.Screen
+        name="admin"
+        options={{
+          title: "Admin",
+          href: isAdmin ? "/admin" : null, // This line hides/shows the tab
+        }}
+      />
+
+      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
     </Tabs>
   );
 }
