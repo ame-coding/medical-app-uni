@@ -1,11 +1,9 @@
-// Works even if expo-secure-store is not installed.
-// It tries secure store, then AsyncStorage, otherwise falls back to in-memory.
-
+// lib/auth.ts
 let useSecure = false;
 let SecureStore: any = null;
 
 try {
-  SecureStore = require('expo-secure-store');
+  SecureStore = require("expo-secure-store");
   useSecure = !!SecureStore?.getItemAsync;
 } catch {
   useSecure = false;
@@ -15,10 +13,12 @@ let memory: Record<string, string> = {};
 let AsyncStorage: any = null;
 
 try {
-  AsyncStorage = require('@react-native-async-storage/async-storage').default;
-} catch { /* optional */ }
+  AsyncStorage = require("@react-native-async-storage/async-storage").default;
+} catch {
+  /* optional */
+}
 
-const TOKEN_KEY = 'jwt';
+const TOKEN_KEY = "jwt";
 
 export async function saveToken(token: string) {
   if (useSecure) return SecureStore.setItemAsync(TOKEN_KEY, token);
@@ -38,10 +38,13 @@ export async function clearToken() {
   delete memory[TOKEN_KEY];
 }
 
-// ⬇️ THIS is the named export your code is importing
-export async function authFetch(input: RequestInfo | URL, init: RequestInit = {}) {
+export async function authFetch(
+  input: RequestInfo | URL,
+  init: RequestInit = {}
+) {
   const token = await getToken();
+  console.log("authFetch - token present:", !!token);
   const headers = new Headers(init.headers || {});
-  if (token) headers.set('Authorization', `Bearer ${token}`);
+  if (token) headers.set("Authorization", `Bearer ${token}`);
   return fetch(input, { ...init, headers });
 }

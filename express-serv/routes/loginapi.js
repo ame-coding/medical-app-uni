@@ -21,6 +21,9 @@ const JWT_EXPIRES = "7d";
 // Middleware: expect "Authorization: Bearer <token>"
 function auth(req, _res, next) {
   const header = req.headers.authorization || "";
+  // ADD THIS LOG:
+  console.log("2. [Server Middleware] Received Authorization header:", header);
+
   const match = header.match(/^Bearer\s+(.+)$/i);
   if (!match) return next({ status: 401, msg: "Missing token" });
   try {
@@ -35,7 +38,9 @@ function auth(req, _res, next) {
 router.post("/login", (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) {
-    return res.status(400).json({ ok: false, message: "username and password are required" });
+    return res
+      .status(400)
+      .json({ ok: false, message: "username and password are required" });
   }
 
   db.get(
@@ -43,13 +48,27 @@ router.post("/login", (req, res) => {
     [username],
     (err, row) => {
       if (err) return res.status(500).json({ ok: false, message: "DB error" });
-      if (!row) return res.status(401).json({ ok: false, message: "Invalid credentials" });
+      if (!row)
+        return res
+          .status(401)
+          .json({ ok: false, message: "Invalid credentials" });
 
       const ok = bcrypt.compareSync(password, row.password_hash);
-      if (!ok) return res.status(401).json({ ok: false, message: "Invalid credentials" });
+      if (!ok)
+        return res
+          .status(401)
+          .json({ ok: false, message: "Invalid credentials" });
 
-      const token = jwt.sign({ sub: row.username, role: row.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
-      res.json({ ok: true, token, user: { username: row.username, role: row.role } });
+      const token = jwt.sign(
+        { sub: row.username, role: row.role },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRES }
+      );
+      res.json({
+        ok: true,
+        token,
+        user: { username: row.username, role: row.role },
+      });
     }
   );
 });
@@ -64,7 +83,9 @@ router.post("/logout", (_req, res) => res.json({ ok: true }));
 
 // Minimal error handler
 router.use((err, _req, res, _next) => {
-  res.status(err?.status || 500).json({ ok: false, message: err?.msg || "Server error" });
+  res
+    .status(err?.status || 500)
+    .json({ ok: false, message: err?.msg || "Server error" });
 });
 
 export default router;

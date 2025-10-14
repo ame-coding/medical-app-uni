@@ -1,27 +1,37 @@
 import React from "react";
+import { View, Text } from "react-native";
 import { Tabs } from "expo-router";
-import { Text } from "react-native";
 import { useAuth } from "../../providers/AuthProvider";
 
-export default function TabLayout() {
+export default function TabsLayout() {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <Text style={{ marginTop: 60, textAlign: "center" }}>Loading...</Text>;
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <Text>Loading session...</Text>
+      </View>
+    );
   }
 
-  const isAdmin = user?.role === "admin";
+  const isAdmin = (user?.role ?? "user").toLowerCase() === "admin";
 
   return (
-    <Tabs key={`role-${isAdmin ? "admin" : "user-or-none"}`}>
-      <Tabs.Screen name="index" options={{ title: "Home" }} />
+    <Tabs>
+      <Tabs.Screen name="home" options={{ title: "Home" }} />
+      <Tabs.Screen name="records" options={{ title: "Records" }} />
+      <Tabs.Screen name="reminders" options={{ title: "Reminders" }} />
+
+      {/* Conditionally hide the admin tab using href: null */}
       <Tabs.Screen
         name="admin"
         options={{
           title: "Admin",
-          href: isAdmin ? "/(tabs)/admin" : null, // hides the tab when not admin
+          href: isAdmin ? "/admin" : null, // This line hides/shows the tab
         }}
       />
+
+      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
     </Tabs>
   );
 }
