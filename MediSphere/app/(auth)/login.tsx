@@ -1,43 +1,59 @@
+// app/(auth)/login.tsx
 import React, { useState } from "react";
-import { View, Text, TextInput, Button, StyleSheet, Alert } from "react-native";
-import { router } from "expo-router";
-
-const BASE = "http://192.168.1.100:4000";
+import { View, TextInput, Button, StyleSheet, Alert } from "react-native";
+import { useRouter } from "expo-router";
+import { useAuth } from "../../providers/AuthProvider";
+import BASE_URL from "../../lib/apiconfig";
 
 export default function LoginScreen() {
+  const { login } = useAuth();
+  const router = useRouter();
+
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [quote, setQuote] = useState<string | null>(null);
 
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const r = await fetch(`${BASE}/quote`, { credentials: "include" });
-        const data = await r.json();
-        setQuote(data?.quote ?? null);
-      } catch {}
-    })();
-  }, []);
-
-  const onLogin = async () => {
+  const onLoginPress = async () => {
     if (!username || !password) {
       return Alert.alert("Missing", "Enter username and password");
     }
+
     setSubmitting(true);
     try {
-      const res = await fetch(`${BASE}/login`, {
+      const res = await fetch(`${BASE_URL}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password }),
       });
+
       const data = await res.json();
-      if (!res.ok || !data?.ok) {
-        return Alert.alert("Login failed", data?.message || "Invalid credentials");
+      console.log("[Login] response:", data, "status:", res.status);
+
+      if (!res.ok) {
+        return Alert.alert(
+          "Login failed",
+          data?.message || "Invalid credentials"
+        );
       }
-      router.replace("/(tabs)");
-    } catch (e) {
+
+      // Pick the token key you actually return from backend.
+      // If backend uses `accessToken` or `jwt`, change this accordingly.
+      const token = data.token ?? data.accessToken ?? data.jwt;
+      if (!token) {
+        console.error("[Login] token missing in response:", data);
+        return Alert.alert(
+          "Login failed",
+          "Token missing from server response"
+        );
+      }
+
+      // Save token & refresh provider
+      await login(token);
+
+      // Immediately navigate to the main app to avoid race conditions.
+      router.replace("/(tabs)/home");
+    } catch (err) {
+      console.error("[Login] network error:", err);
       Alert.alert("Network error", "Could not reach server");
     } finally {
       setSubmitting(false);
@@ -46,7 +62,6 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      {quote ? <Text style={styles.quote}>"{quote}"</Text> : null}
       <TextInput
         style={styles.input}
         placeholder="Username"
@@ -61,13 +76,22 @@ export default function LoginScreen() {
         value={password}
         onChangeText={setPassword}
       />
-      <Button title={submitting ? "Logging in..." : "Login"} onPress={onLogin} />
+      <Button
+        title={submitting ? "Logging in..." : "Login"}
+        onPress={onLoginPress}
+        disabled={submitting}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: "center", padding: 24 },
-  quote: { textAlign: "center", fontStyle: "italic", marginBottom: 32, fontSize: 16 },
-  input: { borderWidth: 1, borderColor: "#ccc", borderRadius: 10, padding: 12, marginBottom: 12 }
+  input: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+  },
 });
