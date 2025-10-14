@@ -1,10 +1,9 @@
-// app/(tabs)/_layout.tsx
 import React from "react";
 import { View, Text } from "react-native";
 import { Tabs } from "expo-router";
 import { useAuth } from "../../providers/AuthProvider";
 
-function InnerTabs() {
+export default function TabsLayout() {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -15,19 +14,24 @@ function InnerTabs() {
     );
   }
 
+  const isAdmin = (user?.role ?? "user").toLowerCase() === "admin";
+
   return (
     <Tabs>
       <Tabs.Screen name="home" options={{ title: "Home" }} />
       <Tabs.Screen name="records" options={{ title: "Records" }} />
       <Tabs.Screen name="reminders" options={{ title: "Reminders" }} />
-      {user?.role === "admin" && (
-        <Tabs.Screen name="admin" options={{ title: "Admin" }} />
-      )}
+
+      {/* Conditionally hide the admin tab using href: null */}
+      <Tabs.Screen
+        name="admin"
+        options={{
+          title: "Admin",
+          href: isAdmin ? "/admin" : null, // This line hides/shows the tab
+        }}
+      />
+
       <Tabs.Screen name="profile" options={{ title: "Profile" }} />
     </Tabs>
   );
-}
-
-export default function TabsLayout() {
-  return <InnerTabs />;
 }

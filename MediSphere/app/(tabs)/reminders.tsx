@@ -1,30 +1,38 @@
 import React from "react";
-import { View, Text, FlatList, StyleSheet } from "react-native";
+import { View, Text, FlatList } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
+import AppButton from "../../components/appButton";
 
 const DUMMY_REMINDERS = [
-  { id: "rem1", time: "Tomorrow at 8:00 AM", task: "Take Vitamin D" },
-  {
-    id: "rem2",
-    time: "Oct 28, 2023 at 2:00 PM",
-    task: "Appointment with Dr. Smith",
-  },
-  { id: "rem3", time: "Nov 01, 2023 at 10:00 AM", task: "Refill prescription" },
+  { id: "r1", time: "Tomorrow, 8:00 AM", task: "Take Vitamin D" },
+  { id: "r2", time: "Oct 28, 2:00 PM", task: "Dentist appointment" },
 ];
 
 export default function RemindersScreen() {
-  const { styles } = useTheme();
+  const { styles, sizes } = useTheme();
 
   return (
     <View style={styles.screen}>
       <Text style={styles.heading}>Reminders</Text>
+      <Text style={styles.mutedText}>
+        Stay on top of medicines and appointments
+      </Text>
+
       <FlatList
+        style={{ marginTop: sizes.gap }}
         data={DUMMY_REMINDERS}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(i) => i.id}
         renderItem={({ item }) => (
-          <View style={[styles.card, { marginBottom: 12 }]}>
-            <Text style={styles.text}>{item.task}</Text>
+          <View style={[styles.card, { marginBottom: sizes.gap }]}>
+            <Text style={styles.heading}>{item.task}</Text>
             <Text style={styles.mutedText}>{item.time}</Text>
+            <View style={{ marginTop: 10 }}>
+              <AppButton
+                title="Mark Done"
+                variant="outline"
+                onPress={() => {}}
+              />
+            </View>
           </View>
         )}
       />
