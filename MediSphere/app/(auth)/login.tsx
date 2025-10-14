@@ -36,8 +36,7 @@ export default function LoginScreen() {
         );
       }
 
-      // Pick the token key you actually return from backend.
-      // If backend uses `accessToken` or `jwt`, change this accordingly.
+      // Get token from backend response
       const token = data.token ?? data.accessToken ?? data.jwt;
       if (!token) {
         console.error("[Login] token missing in response:", data);
@@ -50,8 +49,13 @@ export default function LoginScreen() {
       // Save token & refresh provider
       await login(token);
 
-      // Immediately navigate to the main app to avoid race conditions.
-      router.replace("/(tabs)/home");
+      // Redirect based on role
+      const userRole = data.user?.role?.toLowerCase(); // assumes backend returns role
+      if (userRole === "admin") {
+        router.replace("/(admin_tabs)/dashboard"); // admin landing
+      } else {
+        router.replace("/(tabs)/home"); // normal user landing
+      }
     } catch (err) {
       console.error("[Login] network error:", err);
       Alert.alert("Network error", "Could not reach server");

@@ -4,25 +4,22 @@ import { View, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../providers/AuthProvider";
 
-/**
- * AppEntry - decides where to send the user:
- * - while loading: show spinner
- * - if user exists: go to (tabs)/home
- * - otherwise: go to (auth)/login
- */
 export default function AppEntry() {
   const router = useRouter();
   const { user, loading } = useAuth();
 
   React.useEffect(() => {
-    // Wait for initial auth check to finish
     if (loading) return;
 
-    // Navigate once based on user state
     if (user) {
-      router.replace("/(tabs)/home");
+      const role = user.role?.toLowerCase();
+      if (role === "admin") {
+        router.replace("/(admin_tabs)/dashboard"); // admin landing
+      } else {
+        router.replace("/(tabs)/home"); // normal user landing
+      }
     } else {
-      router.replace("/(auth)/login");
+      router.replace("/(auth)/login"); // not logged in
     }
   }, [user, loading, router]);
 
