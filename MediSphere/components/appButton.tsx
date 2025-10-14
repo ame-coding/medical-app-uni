@@ -1,21 +1,45 @@
-// app/components/AppButton.tsx
 import React from "react";
-import { TouchableOpacity, Text, useColorScheme } from "react-native";
-import { globalStyles } from "../styles/global";
+import {
+  TouchableOpacity,
+  Text,
+  TouchableOpacityProps,
+  View,
+  ActivityIndicator,
+} from "react-native";
+import { useTheme } from "../hooks/useTheme";
+
+type Props = TouchableOpacityProps & {
+  title: string;
+  variant?: "primary" | "outline";
+  loading?: boolean;
+};
 
 export default function AppButton({
   title,
-  onPress,
-}: {
-  title: string;
-  onPress?: () => void;
-}) {
-  const scheme = (useColorScheme() ?? "light") as "light" | "dark";
-  const styles = globalStyles(scheme);
+  variant = "primary",
+  loading = false,
+  ...rest
+}: Props) {
+  const { styles, colors } = useTheme();
+
+  const buttonStyle = [
+    variant === "primary" ? styles.button : styles.outlineButton,
+    { opacity: loading ? 0.8 : 1 },
+  ];
+
+  const textStyle =
+    variant === "primary" ? styles.buttonText : styles.outlineButtonText;
 
   return (
-    <TouchableOpacity style={styles.button} onPress={onPress}>
-      <Text style={styles.buttonText}>{title}</Text>
+    <TouchableOpacity style={buttonStyle} disabled={loading} {...rest}>
+      {loading ? (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <ActivityIndicator size="small" color={colors.background} />
+          <Text style={textStyle}>{title}</Text>
+        </View>
+      ) : (
+        <Text style={textStyle}>{title}</Text>
+      )}
     </TouchableOpacity>
   );
 }

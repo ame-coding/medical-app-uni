@@ -2,10 +2,18 @@ import React from "react";
 import { View, Text, Button, StyleSheet } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
 import { useAuth } from "../../providers/AuthProvider";
+import { useRouter } from "expo-router";
+import AppButton from "@/components/appButton";
 
 export default function ProfileScreen() {
   const { styles, colors } = useTheme();
   const { user, logout } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await logout();
+    router.replace("/(auth)/login"); // navigate to login after logout
+  };
 
   const componentStyles = StyleSheet.create({
     profileCard: {
@@ -38,19 +46,37 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.centerPadded}>
-      <View style={componentStyles.profileCard}>
-        <Text style={componentStyles.username}>
+      <View style={[styles.card, { alignItems: "center", width: "100%" }]}>
+        <View
+          style={{
+            width: 88,
+            height: 88,
+            borderRadius: 44,
+            backgroundColor: colors.glass,
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 12,
+          }}
+        >
+          <Text
+            style={{ fontSize: 24, fontWeight: "700", color: colors.primary }}
+          >
+            {user?.username?.charAt(0)?.toUpperCase() ?? "G"}
+          </Text>
+        </View>
+
+        <Text style={[styles.text, { fontWeight: "700", fontSize: 18 }]}>
           {user?.username ?? "Guest"}
         </Text>
-        {user?.role && (
-          <View style={componentStyles.roleBadge}>
-            <Text style={componentStyles.roleText}>{user.role}</Text>
-          </View>
-        )}
-      </View>
+        <Text style={styles.mutedText}>{user?.role ?? "No role"}</Text>
 
-      <View style={componentStyles.buttonContainer}>
-        <Button title="Logout" onPress={logout} color={colors.error} />
+        <View style={{ marginTop: 18, width: "100%" }}>
+          <AppButton title="Edit Profile" onPress={() => {}} />
+        </View>
+
+        <View style={{ marginTop: 12, width: "100%" }}>
+          <AppButton title="Logout" variant="outline" onPress={handleLogout} />
+        </View>
       </View>
     </View>
   );

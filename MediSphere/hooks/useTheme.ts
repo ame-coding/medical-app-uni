@@ -4,7 +4,8 @@ import { globalStyles } from "../styles/global";
 import { COLORS, SIZES, FONTS } from "../styles/theme";
 
 export const useTheme = () => {
-  const scheme = (useColorScheme() ?? "light") as "light" | "dark";
+  // const scheme = (useColorScheme() ?? "light") as "light" | "dark";
+  const scheme: "light" | "dark" = "light"; // FORCE light mode by default
 
   return {
     colors: COLORS[scheme],
