@@ -64,3 +64,6 @@ Thumbs.db
 
 # Misc
 app-example
+
+#ip config
+apiconfig.ts
