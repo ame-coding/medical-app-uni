@@ -1,21 +1,11 @@
+// app/(admin_tabs)/_layout.tsx
 import React from "react";
-import { View, Text } from "react-native";
 import { Tabs } from "expo-router";
-import { useAuth } from "../../providers/AuthProvider";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
 
-export default function TabsLayout() {
-  const { user, loading } = useAuth();
-  const { colors } = useTheme(); // get theme colors
-
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <Text>Loading session...</Text>
-      </View>
-    );
-  }
+export default function AdminTabsLayout() {
+  const { colors } = useTheme();
 
   const TabIcon = ({
     name,
@@ -28,16 +18,16 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: "black",
-        tabBarInactiveTintColor: colors.primaryVariant,
+        tabBarActiveTintColor: colors.primaryVariant,
+        tabBarInactiveTintColor: "#9CA3AF",
         headerShown: true,
       }}
     >
       <Tabs.Screen
-        name="home"
+        name="dashboard"
         options={{
-          title: "Home",
-          tabBarIcon: () => <TabIcon name="home" />,
+          title: "Dashboard",
+          tabBarIcon: () => <TabIcon name="dashboard" />,
         }}
       />
       <Tabs.Screen
@@ -48,10 +38,10 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="reminders"
+        name="settings"
         options={{
-          title: "Reminders",
-          tabBarIcon: () => <TabIcon name="alarm" />,
+          title: "Settings",
+          tabBarIcon: () => <TabIcon name="settings" />,
         }}
       />
       <Tabs.Screen

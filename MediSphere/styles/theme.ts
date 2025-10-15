@@ -3,7 +3,7 @@ export const COLORS = {
   light: {
     // Brand
     primary: "#219ebc",
-    primaryVariant: "#254EDA",
+    primaryVariant: "#4d908e",
     secondary: "#00C2A8",
     accent: "#fefae0",
 
