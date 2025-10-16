@@ -1,4 +1,4 @@
-# Medical Record Management System
+# Medisphere
 
 A secure and robust full-stack application designed to help users manage their medical records and health reminders efficiently. This project features distinct user and admin roles, a clean user interface, and a secure backend built with Express.js and SQLite.
 
