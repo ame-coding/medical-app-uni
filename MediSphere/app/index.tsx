@@ -13,13 +13,10 @@ export default function AppEntry() {
 
     if (user) {
       const role = user.role?.toLowerCase();
-      if (role === "admin") {
-        router.replace("/(admin_tabs)/dashboard"); // admin landing
-      } else {
-        router.replace("/(tabs)/home"); // normal user landing
-      }
+      if (role === "admin") router.replace("/(admin_tabs)/dashboard");
+      else router.replace("/(tabs)/home");
     } else {
-      router.replace("/(auth)/login"); // not logged in
+      router.replace("/(auth)/login");
     }
   }, [user, loading, router]);
 

@@ -1,6 +1,13 @@
 // app/(auth)/login.tsx
 import React, { useState } from "react";
-import { View, TextInput, Button, StyleSheet, Alert } from "react-native";
+import {
+  View,
+  TextInput,
+  Button,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../providers/AuthProvider";
 import BASE_URL from "../../lib/apiconfig";
@@ -20,15 +27,13 @@ export default function LoginScreen() {
 
     setSubmitting(true);
     try {
-      const res = await fetch(`${BASE_URL}/login`, {
+      const res = await fetch(`${BASE_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
 
       const data = await res.json();
-      console.log("[Login] response:", data, "status:", res.status);
-
       if (!res.ok) {
         return Alert.alert(
           "Login failed",
@@ -36,33 +41,36 @@ export default function LoginScreen() {
         );
       }
 
-      // Get token from backend response
-      const token = data.token ?? data.accessToken ?? data.jwt;
+      const token = data.token;
       if (!token) {
-        console.error("[Login] token missing in response:", data);
-        return Alert.alert(
-          "Login failed",
-          "Token missing from server response"
-        );
+        return Alert.alert("Login failed", "Token missing in response");
       }
 
-      // Save token & refresh provider
       await login(token);
 
-      // Redirect based on role
-      const userRole = data.user?.role?.toLowerCase(); // assumes backend returns role
-      if (userRole === "admin") {
-        router.replace("/(admin_tabs)/dashboard"); // admin landing
-      } else {
-        router.replace("/(tabs)/home"); // normal user landing
-      }
+      const role = data.user?.role?.toLowerCase() ?? "user";
+      if (role === "admin") router.replace("/(admin_tabs)/dashboard");
+      else router.replace("/(tabs)/home");
     } catch (err) {
-      console.error("[Login] network error:", err);
-      Alert.alert("Network error", "Could not reach server");
+      console.error("Login error:", err);
+      Alert.alert("Error", "Network error");
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (submitting) {
+    return (
+      <View
+        style={[
+          styles.container,
+          { justifyContent: "center", alignItems: "center" },
+        ]}
+      >
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -80,11 +88,7 @@ export default function LoginScreen() {
         value={password}
         onChangeText={setPassword}
       />
-      <Button
-        title={submitting ? "Logging in..." : "Login"}
-        onPress={onLoginPress}
-        disabled={submitting}
-      />
+      <Button title="Login" onPress={onLoginPress} disabled={submitting} />
     </View>
   );
 }
