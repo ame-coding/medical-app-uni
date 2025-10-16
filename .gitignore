@@ -56,7 +56,6 @@ Thumbs.db
 *.pem
 
 # Environment files
-.env
 .env.local
 .env*.local
 
@@ -65,3 +64,6 @@ Thumbs.db
 
 # Misc
 app-example
+
+#ip config
+apiconfig.ts
