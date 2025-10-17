@@ -1,9 +1,9 @@
-# Medical Record Management System
+# Medisphere
 
 A secure and robust full-stack application designed to help users manage their medical records and health reminders efficiently. This project features distinct user and admin roles, a clean user interface, and a secure backend built with Express.js and SQLite.
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
-![Version](https://img.shields.io/badge/version-1.0.3-brightgreen)
+![Version](https://img.shields.io/badge/version-1.0.0-brightgreen)
 
 ## Table of Contents
 
