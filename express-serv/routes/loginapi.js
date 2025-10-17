@@ -1,9 +1,11 @@
+// express-serv/routes/loginapi.js
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import sqlite3 from "sqlite3";
-import jwt from "jsonwebtoken";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import jwt from "jsonwebtoken";
+import { auth, JWT_SECRET } from "../middleware/auth.js"; // middleware and secret
 
 const router = Router();
 
@@ -15,26 +17,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
   else console.log("Connected to SQLite (loginapi)");
 });
 
-const JWT_SECRET = process.env.JWT_SECRET || "devjwtsecret";
-const JWT_EXPIRES = "7d";
-
-// Middleware: expect "Authorization: Bearer <token>"
-function auth(req, _res, next) {
-  const header = req.headers.authorization || "";
-  // ADD THIS LOG:
-  console.log("2. [Server Middleware] Received Authorization header:", header);
-
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  if (!match) return next({ status: 401, msg: "Missing token" });
-  try {
-    req.user = jwt.verify(match[1], JWT_SECRET); // { sub, role }
-    next();
-  } catch {
-    next({ status: 401, msg: "Invalid or expired token" });
-  }
-}
-
-// POST /login -> returns JWT and user {username, role}
+// POST /login -> returns JWT and user info
 router.post("/login", (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) {
@@ -44,7 +27,7 @@ router.post("/login", (req, res) => {
   }
 
   db.get(
-    "SELECT username, role, password_hash FROM users WHERE username = ?",
+    "SELECT id, username, role, password_hash FROM users WHERE username = ?",
     [username],
     (err, row) => {
       if (err) return res.status(500).json({ ok: false, message: "DB error" });
@@ -60,26 +43,37 @@ router.post("/login", (req, res) => {
           .json({ ok: false, message: "Invalid credentials" });
 
       const token = jwt.sign(
-        { sub: row.username, role: row.role },
+        { id: row.id, sub: row.username, role: row.role },
         JWT_SECRET,
-        { expiresIn: JWT_EXPIRES }
+        { expiresIn: "7d" }
       );
+
       res.json({
         ok: true,
         token,
-        user: { username: row.username, role: row.role },
+        user: { id: row.id, username: row.username, role: row.role },
       });
     }
   );
 });
 
-// GET /me -> protected (reads token)
+// GET /me -> protected
 router.get("/me", auth, (req, res) => {
-  res.json({ ok: true, user: { username: req.user.sub, role: req.user.role } });
+  // req.user is set by auth middleware
+  res.json({
+    ok: true,
+    user: {
+      id: req.user.id,
+      username: req.user.sub,
+      role: req.user.role,
+    },
+  });
 });
 
-// POST /logout -> no-op with JWT (client discards token)
-router.post("/logout", (_req, res) => res.json({ ok: true }));
+// POST /logout -> client discards token
+router.post("/logout", (_req, res) => {
+  res.json({ ok: true });
+});
 
 // Minimal error handler
 router.use((err, _req, res, _next) => {

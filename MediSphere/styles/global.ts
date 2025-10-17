@@ -57,6 +57,18 @@ export const globalStyles = (mode: "light" | "dark" = "light") =>
       borderWidth: 1,
       borderColor: COLORS[mode].border,
     },
+    // Example for use in your theme/styles hook
+    input: {
+      borderWidth: 1,
+      borderColor: "#ccc", // light gray border
+      borderRadius: 8, // rounded corners
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      marginBottom: 12,
+      fontSize: 16,
+      color: "#333", // text color
+      backgroundColor: "#fff", // white background
+    },
 
     // Buttons (primary & outline)
     button: {
