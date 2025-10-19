@@ -1,24 +1,17 @@
+import React from "react";
 import { Stack } from "expo-router";
 import { AuthProvider } from "../providers/AuthProvider";
-import React from "react";
-import { useAuth } from "../providers/AuthProvider";
 
 export default function RootLayout() {
-  const { user, loading } = useAuth();
-
   return (
     <AuthProvider>
       <Stack screenOptions={{ headerShown: false }}>
-        {/* Auth stack */}
-        <Stack.Screen name="(auth)" />
+        {/* Auth routes */}
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
 
-        {/* Normal user tabs */}
-        <Stack.Screen name="(tabs)" />
-
-        {/* Admin tabs: optionally route only for admin */}
-        {user?.role?.toLowerCase() === "admin" && (
-          <Stack.Screen name="(admin_tabs)" />
-        )}
+        {/* Tabs for normal and admin (admin check happens inside auth flow) */}
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="(admin_tabs)" options={{ headerShown: false }} />
       </Stack>
     </AuthProvider>
   );
