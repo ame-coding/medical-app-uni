@@ -11,7 +11,7 @@ import {
 import { useRouter } from "expo-router";
 import { useAuth } from "../../providers/AuthProvider";
 import BASE_URL from "../../lib/apiconfig";
-
+import { Pressable, Text } from "react-native";
 export default function LoginScreen() {
   const { login } = useAuth();
   const router = useRouter();
@@ -19,6 +19,10 @@ export default function LoginScreen() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  const registration = () => {
+    router.push("/(auth)/register");
+  };
 
   const onLoginPress = async () => {
     if (!username || !password) {
@@ -88,7 +92,12 @@ export default function LoginScreen() {
         value={password}
         onChangeText={setPassword}
       />
-      <Button title="Login" onPress={onLoginPress} disabled={submitting} />
+      <View style={{ marginBottom: 4 }}>
+          <Button title="Login" onPress={onLoginPress} disabled={submitting} />
+          
+      </View>
+      <Button title="Register" onPress={registration}/>
+      
     </View>
   );
 }

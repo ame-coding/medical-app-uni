@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import loginRouter from "./routes/loginapi.js";
 import recordsRouter from "./routes/records.js";
+import registerroute from "./routes/registerapi.js";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -24,9 +25,9 @@ app.use((req, _res, next) => {
 });
 
 // mount routers
-app.use("/api/auth", loginRouter); // login/register related
+app.use("/api/auth", loginRouter); // login related
 app.use("/api/records", recordsRouter); // records endpoints
-
+app.use("/api/register", registerroute); // registration
 // health check
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
