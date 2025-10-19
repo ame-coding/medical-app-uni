@@ -12,7 +12,9 @@ import { useRouter } from "expo-router";
 import { useAuth } from "../../providers/AuthProvider";
 import BASE_URL from "../../lib/apiconfig";
 import { Pressable, Text } from "react-native";
+import { useTheme } from "../../hooks/useTheme";
 export default function LoginScreen() {
+  const { styles, colors } = useTheme();
   const { login } = useAuth();
   const router = useRouter();
 
@@ -67,7 +69,7 @@ export default function LoginScreen() {
     return (
       <View
         style={[
-          styles.container,
+          styles.screen,
           { justifyContent: "center", alignItems: "center" },
         ]}
       >
@@ -77,7 +79,10 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.screen, { justifyContent: "center", padding: 20}]}>
+
+       <Text style={[styles.heading, {  textAlign: "center",
+        paddingBottom: 20}]}>MEDISPHERE</Text>
       <TextInput
         style={styles.input}
         placeholder="Username"
@@ -101,14 +106,3 @@ export default function LoginScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", padding: 24 },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 12,
-  },
-});
