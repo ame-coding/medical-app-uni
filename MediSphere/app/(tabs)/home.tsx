@@ -1,5 +1,4 @@
-// app/(tabs)/home.tsx
-import React from "react";
+import React, { useEffect } from "react";
 import { View, Text, FlatList, Alert } from "react-native";
 import { useAuth } from "../../providers/AuthProvider";
 import { useTheme } from "../../hooks/useTheme";
@@ -11,17 +10,23 @@ export default function Home() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  if (loading)
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/(auth)/login");
+    }
+  }, [loading, user]);
+
+  if (loading) {
     return (
       <View style={styles.screen}>
         <Text style={styles.mutedText}>Loading...</Text>
       </View>
     );
-  if (!user) {
-    router.replace("/(auth)/login");
-    return null;
   }
 
+  if (!user) return null;
+
+  // rest of your component stays the same
   const quickActions = [
     { id: "a1", label: "New Record", hint: "Add a new medical record" },
     { id: "a2", label: "Add Reminder", hint: "Create a medication alarm" },
@@ -58,10 +63,10 @@ export default function Home() {
                 </Text>
                 <View style={{ marginTop: 10 }}>
                   <AppButton
-                    title={item.id === "a1" ? "Open" : "Open"}
+                    title="Open"
                     onPress={() =>
                       item.id === "a1"
-                        ? router.push("../addItems/newRecord") // updated path
+                        ? router.push("../addItems/newRecord")
                         : Alert.alert("Action", item.label)
                     }
                   />
