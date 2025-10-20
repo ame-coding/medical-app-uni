@@ -24,7 +24,7 @@ router.post("/register", (req, res) => {
     last_name,
     gender,
     phone,
-    age,
+    dob, // ✅ renamed field
   } = req.body || {};
 
   if (!username || !password) {
@@ -52,12 +52,12 @@ router.post("/register", (req, res) => {
 
       // insert into userinfo (dependent table)
       const insertInfoSql = `
-        INSERT INTO userinfo (user_id, first_name, last_name, gender, phone, age)
+        INSERT INTO userinfo (user_id, first_name, last_name, gender, phone, dob)
         VALUES (?, ?, ?, ?, ?, ?)
       `;
       db.run(
         insertInfoSql,
-        [userId, first_name || "", last_name || "", gender || "", phone || "", age || null],
+        [userId, first_name || "", last_name || "", gender || "", phone || "", dob || null],
         (infoErr) => {
           if (infoErr)
             return res.status(500).json({ ok: false, message: "Userinfo insert failed" });

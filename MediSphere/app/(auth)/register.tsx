@@ -7,7 +7,6 @@ import BASE_URL from "../../lib/apiconfig";
 import AppButton from "@/components/appButton";
 import { KeyboardTypeOptions } from "react-native";
 
-
 export default function RegisterScreen() {
   const { styles, sizes } = useTheme();
   const router = useRouter();
@@ -20,7 +19,7 @@ export default function RegisterScreen() {
     last_name: "",
     gender: "",
     phone: "",
-    age: "",
+    dob: "", // ✅ renamed
   });
 
   const handleChange = (field: string, value: string) => {
@@ -65,9 +64,8 @@ export default function RegisterScreen() {
     );
 
   return (
-    <ScrollView contentContainerStyle={{ padding: sizes.gap }}>
+    <ScrollView contentContainerStyle={{ padding: sizes.gap }} style={[styles.screen, { padding: 5 }]}>
       <Text style={styles.heading}>Register</Text>
-      <Text style={styles.mutedText}>Create your new account</Text>
 
       {[
         { key: "username", label: "Username" },
@@ -75,17 +73,18 @@ export default function RegisterScreen() {
         { key: "first_name", label: "First Name" },
         { key: "last_name", label: "Last Name" },
         { key: "gender", label: "Gender" },
-        { key: "phone", label: "Phone Number" },
-        { key: "age", label: "Age", keyboardType: "numeric" },
+        { key: "phone", label: "Phone Number", keyboardType: "phone-pad" },
+        { key: "dob", label: "Date of Birth (YYYY-MM-DD)" }, // ✅ renamed + hint
       ].map((f) => (
         <View key={f.key} style={{ marginTop: sizes.gap }}>
-          <Text style={{fontSize: 14,color: "#666",fontWeight: "500",marginBottom: 4,}}>{f.label}</Text>
+          <Text style={{ fontSize: 14, color: "#666", fontWeight: "500", marginBottom: 4 }}>
+            {f.label}
+          </Text>
           <TextInput
             style={styles.input}
             placeholder={f.label}
             secureTextEntry={f.secure}
-           keyboardType={f.keyboardType as KeyboardTypeOptions || "default"}
-
+            keyboardType={(f.keyboardType as KeyboardTypeOptions) || "default"}
             value={form[f.key as keyof typeof form]}
             onChangeText={(v) => handleChange(f.key, v)}
           />

@@ -4,6 +4,7 @@ import { Tabs } from "expo-router";
 import { useAuth } from "../../providers/AuthProvider";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
+import DarkLightButton from "../../components/darklight";
 
 export default function TabsLayout() {
   const { user, loading } = useAuth();
@@ -28,6 +29,7 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
+        headerRight: () => <DarkLightButton />,
         tabBarActiveTintColor: "black",
         tabBarInactiveTintColor: colors.primaryVariant,
         headerShown: true,

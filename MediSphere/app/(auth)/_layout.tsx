@@ -2,7 +2,7 @@ import React from "react";
 import { Stack } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StyleSheet, View } from "react-native";
-
+import DarkLightButton from "../../components/darklight";
 export default function AuthLayout() {
   return (
     <SafeAreaView style={styles.safeArea} edges={["bottom"]}>
@@ -10,11 +10,12 @@ export default function AuthLayout() {
         <Stack>
           <Stack.Screen
             name="login"
-            options={{ headerBackVisible: false, title: "Login" }}
+            options={{   headerShown: true, headerBackVisible: false, title: "Login", headerRight: () => <DarkLightButton />, }}
+
           />
           <Stack.Screen
             name="register"
-            options={{ title: "Register" }}
+            options={{   headerShown: true, title: "Register" , headerRight: () => <DarkLightButton />}}
           />
         </Stack>
       </View>
