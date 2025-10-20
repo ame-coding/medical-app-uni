@@ -12,7 +12,9 @@ import { useRouter } from "expo-router";
 import { useAuth } from "../../providers/AuthProvider";
 import BASE_URL from "../../lib/apiconfig";
 import { Pressable, Text } from "react-native";
+import AppButton from "@/components/appButton";
 import { useTheme } from "../../hooks/useTheme";
+
 export default function LoginScreen() {
   const { styles, colors } = useTheme();
   const { login } = useAuth();
@@ -97,12 +99,8 @@ export default function LoginScreen() {
         value={password}
         onChangeText={setPassword}
       />
-      <View style={{ marginBottom: 4 }}>
-          <Button title="Login" onPress={onLoginPress} disabled={submitting} />
-          
-      </View>
-      <Button title="Register" onPress={registration}/>
-      
+       <AppButton  title="Login" onPress={onLoginPress} disabled={submitting}/>      
+       <AppButton title="Register" onPress={registration} />
     </View>
   );
 }

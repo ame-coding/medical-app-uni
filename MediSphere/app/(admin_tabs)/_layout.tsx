@@ -3,7 +3,7 @@ import React from "react";
 import { Tabs } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
-
+import DarkLightButton from "../../components/darklight";
 export default function AdminTabsLayout() {
   const { colors } = useTheme();
 
@@ -18,6 +18,7 @@ export default function AdminTabsLayout() {
   return (
     <Tabs
       screenOptions={{
+         headerRight: () => <DarkLightButton />,
         tabBarActiveTintColor: colors.primaryVariant,
         tabBarInactiveTintColor: "#9CA3AF",
         headerShown: true,

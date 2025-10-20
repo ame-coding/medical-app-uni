@@ -38,7 +38,7 @@ export default function AppButton({
   ];
 
   return (
-    <TouchableOpacity style={buttonStyle} disabled={loading} {...rest}>
+    <TouchableOpacity style={[buttonStyle, (rest as any).style, { margin: 3 }]} disabled={loading} {...rest}>
       {loading ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <ActivityIndicator size="small" color={colors.background} />
