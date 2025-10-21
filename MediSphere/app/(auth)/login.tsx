@@ -93,6 +93,14 @@ export default function LoginScreen() {
         value={username}
         onChangeText={setUsername}
       />
+      <Text 
+      style={[
+        styles.text, 
+        { marginBottom: 3, marginTop: 3 }
+      ]}
+    >
+      Password
+    </Text>
       <TextInput
         style={styles.input}
         placeholder="Password"

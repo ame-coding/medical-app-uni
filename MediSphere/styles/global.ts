@@ -1,4 +1,4 @@
-import { StyleSheet } from "react-native";
+import { StyleSheet, StatusBar, Platform } from "react-native";
 import { COLORS, SIZES } from "./theme";
 
 export const globalStyles = (mode: "light" | "dark" = "light") =>
@@ -59,15 +59,17 @@ export const globalStyles = (mode: "light" | "dark" = "light") =>
     },
     // Example for use in your theme/styles hook
     input: {
-      borderWidth: 1,
-      borderColor: "#ccc", // light gray border
-      borderRadius: 8, // rounded corners
-      paddingVertical: 10,
-      paddingHorizontal: 12,
-      marginBottom: 12,
-      fontSize: 16,
-      color: "#333", // text color
-      backgroundColor: "#fff", // white background
+    borderWidth: 1,
+    borderColor: COLORS[mode].border,
+    borderRadius: SIZES.radius, 
+    paddingVertical: 10,
+    paddingHorizontal: SIZES.padding, 
+    marginBottom: SIZES.gap,
+    fontSize: SIZES.body, 
+     color: COLORS[mode].text,
+      backgroundColor: COLORS[mode].surface, 
+    
+     
     },
 
     // Buttons (primary & outline)
@@ -117,4 +119,17 @@ export const globalStyles = (mode: "light" | "dark" = "light") =>
     // Utility
     row: { flexDirection: "row", alignItems: "center", gap: 8 },
     spaced: { marginVertical: SIZES.gap },
+  
+    //header
+    header: {
+      backgroundColor: COLORS[mode].background,
+      borderBottomColor: COLORS[mode].border,
+    },
+
+
+    //generalbackground
+    genback: {
+      backgroundColor: COLORS[mode].background,
+    },
+  
   });
