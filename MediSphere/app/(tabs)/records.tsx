@@ -122,7 +122,7 @@ export default function RecordsScreen() {
               {item.record_title ?? item.title}
             </Text>
             <Text style={styles.mutedText}>{item.date}</Text>
-            <Text style={{ marginTop: 8 }}>
+            <Text style={styles.text}>
               {item.description ?? item.note}
             </Text>
             <View
