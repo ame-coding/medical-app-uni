@@ -35,7 +35,7 @@ export default function Dashboard() {
             style={[styles.card, { marginBottom: sizes.gap }]}
           >
             <Text style={styles.text}>{s.label}</Text>
-            <Text style={{ fontWeight: "700", fontSize: 22 }}>{s.value}</Text>
+            <Text style={[styles.text, { fontWeight: "700",fontSize: 22 }]}>{s.value}</Text>
           </View>
         ))}
       </View>

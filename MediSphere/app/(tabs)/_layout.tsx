@@ -1,14 +1,27 @@
 import React from "react";
-import { View, Text } from "react-native";
+
+import { StyleSheet, View,StatusBar, Text } from "react-native";
 import { Tabs } from "expo-router";
 import { useAuth } from "../../providers/AuthProvider";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
 import DarkLightButton from "../../components/darklight";
 
+import { useEffect } from "react";
+import * as NavigationBar from "expo-navigation-bar";
+
 export default function TabsLayout() {
   const { user, loading } = useAuth();
-  const { colors } = useTheme(); // get theme colors
+ const { barStyle,colors,styles } = useTheme();
+
+
+     useEffect(() => {
+    NavigationBar.setButtonStyleAsync(
+      barStyle === "dark-content" ? "dark" : "light"
+    );
+  }, [barStyle]);
+  
+
 
   if (loading) {
     return (
@@ -27,14 +40,20 @@ export default function TabsLayout() {
   }) => <MaterialIcons name={name} size={size} color={colors.primaryVariant} />;
 
   return (
+    <>
+        <StatusBar barStyle={barStyle} backgroundColor={colors.background} />
     <Tabs
       screenOptions={{
-        headerRight: () => <DarkLightButton />,
-        tabBarActiveTintColor: "black",
-        tabBarInactiveTintColor: colors.primaryVariant,
+         headerRight: () => <DarkLightButton />,
+        tabBarActiveTintColor: colors.primaryVariant,
+        tabBarInactiveTintColor: "#9CA3AF",
         headerShown: true,
+        tabBarStyle: { backgroundColor: colors.background},
+        headerStyle: styles.genback,
+        headerTintColor: colors.text,
       }}
     >
+    
       <Tabs.Screen
         name="home"
         options={{
@@ -64,5 +83,6 @@ export default function TabsLayout() {
         }}
       />
     </Tabs>
+    </>
   );
 }
