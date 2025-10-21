@@ -1,6 +1,6 @@
 // hooks/useTheme.ts
 import React, { createContext, useContext, useState, useMemo } from "react";
-import { useColorScheme } from "react-native";
+import { useColorScheme, StatusBarStyle } from "react-native";
 import { globalStyles } from "../styles/global";
 import { COLORS, SIZES, FONTS } from "../styles/theme";
 
@@ -13,6 +13,7 @@ type ThemeContextType = {
   fonts: typeof FONTS;
   styles: ReturnType<typeof globalStyles>;
   toggleTheme: () => void;
+  barStyle: StatusBarStyle;
 };
 
 // Context
@@ -33,6 +34,11 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
       fonts: FONTS,
       styles: globalStyles(mode),
       toggleTheme,
+    barStyle: (mode === "light"
+  ? ("dark-content" as import("react-native").StatusBarStyle)
+  : ("light-content" as import("react-native").StatusBarStyle)),
+
+
     }),
     [mode]
   );
@@ -54,6 +60,7 @@ export const useTheme = () => {
       styles: globalStyles(scheme),
       mode: scheme,
       toggleTheme: () => {},
+      barStyle: "dark-content" as const,
     };
   }
 

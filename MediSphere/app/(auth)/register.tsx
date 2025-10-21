@@ -65,7 +65,6 @@ export default function RegisterScreen() {
 
   return (
     <ScrollView contentContainerStyle={{ padding: sizes.gap }} style={[styles.screen, { padding: 5 }]}>
-      <Text style={styles.heading}>Register</Text>
 
       {[
         { key: "username", label: "Username" },
@@ -77,7 +76,7 @@ export default function RegisterScreen() {
         { key: "dob", label: "Date of Birth (YYYY-MM-DD)" }, // ✅ renamed + hint
       ].map((f) => (
         <View key={f.key} style={{ marginTop: sizes.gap }}>
-          <Text style={{ fontSize: 14, color: "#666", fontWeight: "500", marginBottom: 4 }}>
+          <Text style={styles.text}>
             {f.label}
           </Text>
           <TextInput
