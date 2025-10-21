@@ -1,22 +1,14 @@
-// app/(auth)/login.tsx
 import React, { useState } from "react";
-import {
-  View,
-  TextInput,
-  Button,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
+import { View, TextInput, Alert, ActivityIndicator, Text } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../providers/AuthProvider";
 import BASE_URL from "../../lib/apiconfig";
-import { Pressable, Text } from "react-native";
 import AppButton from "@/components/appButton";
 import { useTheme } from "../../hooks/useTheme";
+import { registerExpoPushToken } from "../utils/registerPushToken";
 
 export default function LoginScreen() {
-  const { styles, colors } = useTheme();
+  const { styles } = useTheme();
   const { login } = useAuth();
   const router = useRouter();
 
@@ -42,23 +34,29 @@ export default function LoginScreen() {
       });
 
       const data = await res.json();
-      if (!res.ok) {
+      if (!res.ok)
         return Alert.alert(
           "Login failed",
           data?.message || "Invalid credentials"
         );
-      }
 
       const token = data.token;
-      if (!token) {
+      if (!token)
         return Alert.alert("Login failed", "Token missing in response");
-      }
 
+      // Save token and refresh user state
       await login(token);
 
+      // Redirect immediately after login
       const role = data.user?.role?.toLowerCase() ?? "user";
-      if (role === "admin") router.replace("/(admin_tabs)/dashboard");
-      else router.replace("/(tabs)/home");
+      router.replace(
+        role === "admin" ? "/(admin_tabs)/dashboard" : "/(tabs)/home"
+      );
+
+      // Register push token in background (non-blocking)
+      registerExpoPushToken().catch((err) =>
+        console.warn("Push token registration failed:", err)
+      );
     } catch (err) {
       console.error("Login error:", err);
       Alert.alert("Error", "Network error");
@@ -81,10 +79,13 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={[styles.screen, { justifyContent: "center", padding: 20}]}>
+    <View style={[styles.screen, { justifyContent: "center", padding: 20 }]}>
+      <Text
+        style={[styles.heading, { textAlign: "center", paddingBottom: 20 }]}
+      >
+        MEDISPHERE
+      </Text>
 
-       <Text style={[styles.heading, {  textAlign: "center",
-        paddingBottom: 20}]}>MEDISPHERE</Text>
       <TextInput
         style={styles.input}
         placeholder="Username"
@@ -99,8 +100,9 @@ export default function LoginScreen() {
         value={password}
         onChangeText={setPassword}
       />
-       <AppButton  title="Login" onPress={onLoginPress} disabled={submitting}/>      
-       <AppButton title="Register" onPress={registration} />
+
+      <AppButton title="Login" onPress={onLoginPress} disabled={submitting} />
+      <AppButton title="Register" onPress={registration} />
     </View>
   );
 }

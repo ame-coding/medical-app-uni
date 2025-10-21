@@ -1,4 +1,3 @@
-// providers/AuthProvider.tsx
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { authFetch, clearToken, getToken, saveToken } from "../lib/auth";
 import BASE_URL from "../lib/apiconfig";
@@ -24,7 +23,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User>(null);
   const [loading, setLoading] = useState(true);
 
-  const refresh = async (): Promise<boolean> => {
+  const refreshUser = async (): Promise<boolean> => {
     try {
       const res = await authFetch(`${BASE_URL}/auth/me`);
       if (!res.ok) {
@@ -44,11 +43,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         const token = await getToken();
-        if (token) {
-          await refresh();
-        } else {
-          setUser(null);
-        }
+        if (token) await refreshUser();
+        else setUser(null);
       } catch {
         setUser(null);
       } finally {
@@ -59,7 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (token: string) => {
     await saveToken(token);
-    await refresh();
+    await refreshUser(); // updates user state
   };
 
   const logout = async () => {
