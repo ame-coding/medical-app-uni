@@ -1,3 +1,4 @@
+// app/(tabs)/home.tsx
 import React, { useEffect } from "react";
 import { View, Text, FlatList, Alert } from "react-native";
 import { useAuth } from "../../providers/AuthProvider";
@@ -26,11 +27,20 @@ export default function Home() {
 
   if (!user) return null;
 
-  // rest of your component stays the same
   const quickActions = [
-    { id: "a1", label: "New Record", hint: "Add a new medical record" },
-    { id: "a2", label: "Add Reminder", hint: "Create a medication alarm" },
-    { id: "a3", label: "Find Clinic", hint: "Search nearby clinics" },
+    {
+      id: "a1",
+      label: "New Record",
+      hint: "Add a new medical record",
+      to: "../addItems/newRecord",
+    },
+    {
+      id: "a2",
+      label: "Add Reminder",
+      hint: "Create a medication alarm",
+      to: "../addItems/newReminders",
+    }, // changed
+    { id: "a3", label: "Find Clinic", hint: "Search nearby clinics", to: null },
   ];
 
   return (
@@ -65,8 +75,8 @@ export default function Home() {
                   <AppButton
                     title="Open"
                     onPress={() =>
-                      item.id === "a1"
-                        ? router.push("../addItems/newRecord")
+                      item.to
+                        ? router.push(item.to as any) // <-- cast to any fixes TS error
                         : Alert.alert("Action", item.label)
                     }
                   />

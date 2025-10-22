@@ -1,5 +1,4 @@
-// app/index.tsx
-import React from "react";
+import React, { useEffect } from "react";
 import { View, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../providers/AuthProvider";
@@ -8,13 +7,14 @@ export default function AppEntry() {
   const router = useRouter();
   const { user, loading } = useAuth();
 
-  React.useEffect(() => {
-    if (loading) return;
+  useEffect(() => {
+    if (loading) return; // wait until auth ready
 
     if (user) {
       const role = user.role?.toLowerCase();
-      if (role === "admin") router.replace("/(admin_tabs)/dashboard");
-      else router.replace("/(tabs)/home");
+      router.replace(
+        role === "admin" ? "/(admin_tabs)/dashboard" : "/(tabs)/home"
+      );
     } else {
       router.replace("/(auth)/login");
     }

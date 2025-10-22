@@ -1,41 +1,54 @@
+// app/(tabs)/reminders.tsx
 import React from "react";
-import { View, Text, FlatList } from "react-native";
+import { View, Text, FlatList, TouchableOpacity } from "react-native";
+import { useRouter } from "expo-router";
+import useReminders from "../../hooks/useReminders";
 import { useTheme } from "../../hooks/useTheme";
-import AppButton from "../../components/appButton";
+import ReminderCard from "../../components/ReminderCard";
 
-const DUMMY_REMINDERS = [
-  { id: "r1", time: "Tomorrow, 8:00 AM", task: "Take Vitamin D" },
-  { id: "r2", time: "Oct 28, 2:00 PM", task: "Dentist appointment" },
-];
+export default function Reminders() {
+  const { styles, colors, sizes } = useTheme();
+  const router = useRouter();
+  const { reminders, loading, cancelAndClear } = useReminders();
 
-export default function RemindersScreen() {
-  const { styles, sizes } = useTheme();
+  const handleDelete = (id: number) => {
+    cancelAndClear(id, null);
+  };
 
   return (
     <View style={styles.screen}>
-      <Text style={styles.heading}>Reminders</Text>
-      <Text style={styles.mutedText}>
-        Stay on top of medicines and appointments
-      </Text>
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: sizes.gap,
+        }}
+      >
+        <Text style={styles.heading}>Reminders</Text>
 
-      <FlatList
-        style={{ marginTop: sizes.gap }}
-        data={DUMMY_REMINDERS}
-        keyExtractor={(i) => i.id}
-        renderItem={({ item }) => (
-          <View style={[styles.card, { marginBottom: sizes.gap }]}>
-            <Text style={styles.heading}>{item.task}</Text>
-            <Text style={styles.mutedText}>{item.time}</Text>
-            <View style={{ marginTop: 10 }}>
-              <AppButton
-                title="Mark Done"
-                variant="outline"
-                onPress={() => {}}
-              />
-            </View>
-          </View>
-        )}
-      />
+        <TouchableOpacity
+          onPress={() => router.push("../addItems/newReminders")}
+        >
+          <Text style={{ color: colors.primary, fontWeight: "700" }}>
+            + Add
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {loading ? <Text style={styles.mutedText}>Loading...</Text> : null}
+
+      {reminders.length === 0 && !loading ? (
+        <Text style={styles.mutedText}>No reminders yet.</Text>
+      ) : (
+        <FlatList
+          data={reminders}
+          keyExtractor={(r) => r.id.toString()}
+          renderItem={({ item }) => (
+            <ReminderCard reminder={item} onDelete={handleDelete} />
+          )}
+        />
+      )}
     </View>
   );
 }

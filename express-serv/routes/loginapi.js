@@ -1,24 +1,15 @@
 // express-serv/routes/loginapi.js
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import sqlite3 from "sqlite3";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import jwt from "jsonwebtoken";
+import db from "../dbfiles/db.js"; // <-- IMPORT SHARED DB
 import { auth, JWT_SECRET } from "../middleware/auth.js"; // middleware and secret
 
 const router = Router();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const dbPath = path.resolve(__dirname, "../dbfiles/app.db");
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) console.error("Failed to open database:", err.message);
-  else console.log("Connected to SQLite (loginapi)");
-});
-
 // POST /login -> returns JWT and user info
-router.post("/login", (req, res) => {
+router.post("/login", async (req, res) => {
+  // <-- Added async
   const { username, password } = req.body || {};
   if (!username || !password) {
     return res
@@ -26,38 +17,44 @@ router.post("/login", (req, res) => {
       .json({ ok: false, message: "username and password are required" });
   }
 
-  db.get(
-    "SELECT id, username, role, password_hash FROM users WHERE username = ?",
-    [username],
-    (err, row) => {
-      if (err) return res.status(500).json({ ok: false, message: "DB error" });
-      if (!row)
-        return res
-          .status(401)
-          .json({ ok: false, message: "Invalid credentials" });
+  try {
+    const row = await db.get(
+      // <-- Changed to await
+      "SELECT id, username, role, password_hash FROM users WHERE username = ?",
+      [username]
+    );
 
-      const ok = bcrypt.compareSync(password, row.password_hash);
-      if (!ok)
-        return res
-          .status(401)
-          .json({ ok: false, message: "Invalid credentials" });
-
-      const token = jwt.sign(
-        { id: row.id, sub: row.username, role: row.role },
-        JWT_SECRET,
-        { expiresIn: "7d" }
-      );
-
-      res.json({
-        ok: true,
-        token,
-        user: { id: row.id, username: row.username, role: row.role },
-      });
+    if (!row) {
+      return res
+        .status(401)
+        .json({ ok: false, message: "Invalid credentials" });
     }
-  );
+
+    const ok = bcrypt.compareSync(password, row.password_hash);
+    if (!ok) {
+      return res
+        .status(401)
+        .json({ ok: false, message: "Invalid credentials" });
+    }
+
+    const token = jwt.sign(
+      { id: row.id, sub: row.username, role: row.role },
+      JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    res.json({
+      ok: true,
+      token,
+      user: { id: row.id, username: row.username, role: row.role },
+    });
+  } catch (err) {
+    console.error("Login DB error:", err.message);
+    return res.status(500).json({ ok: false, message: "Server error" });
+  }
 });
 
-// GET /me -> protected
+// GET /me -> protected (No DB access, no change needed)
 router.get("/me", auth, (req, res) => {
   // req.user is set by auth middleware
   res.json({
@@ -70,7 +67,7 @@ router.get("/me", auth, (req, res) => {
   });
 });
 
-// POST /logout -> client discards token
+// POST /logout -> client discards token (No DB access, no change needed)
 router.post("/logout", (_req, res) => {
   res.json({ ok: true });
 });
