@@ -1,10 +1,13 @@
+// express-serv/routes/reminders.js
 import express from "express";
 import { auth } from "../middleware/auth.js";
 import db from "../dbfiles/db.js";
-import scheduler from "../notifications/scheduler.js";
+// --- DELETE THIS ---
+// import scheduler from "../notifications/scheduler.js";
 
 const router = express.Router();
 
+// GET route is unchanged
 router.get("/", auth, async (req, res, next) => {
   try {
     const userId = req.user.id;
@@ -20,6 +23,7 @@ router.get("/", auth, async (req, res, next) => {
   }
 });
 
+// POST route - scheduler call is REMOVED
 router.post("/", auth, async (req, res, next) => {
   try {
     const userId = req.user.id;
@@ -51,15 +55,16 @@ router.post("/", auth, async (req, res, next) => {
         .status(500)
         .json({ ok: false, message: "Failed to fetch new reminder" });
 
-    scheduler.scheduleReminder(newRow);
+    // --- REMOVED ---
+    // scheduler.scheduleReminder(newRow);
+
     res.json({ ok: true, reminder: newRow });
   } catch (err) {
     next(err);
   }
 });
 
-// ... keep PUT and DELETE unchanged, just ensure you call scheduler.scheduleReminder(updated) safely
-// PUT update reminder
+// PUT route - scheduler call is REMOVED
 router.put("/:id", auth, async (req, res, next) => {
   try {
     const userId = req.user.id;
@@ -70,7 +75,7 @@ router.put("/:id", auth, async (req, res, next) => {
       "date_time",
       "repeat_interval",
       "is_active",
-      "notification_id",
+      "notification_id", // This field IS used now
     ];
     const sets = [];
     const params = [];
@@ -100,7 +105,9 @@ router.put("/:id", auth, async (req, res, next) => {
       return res.status(404).json({ ok: false, message: "Reminder not found" });
 
     const updated = await db.get("SELECT * FROM reminders WHERE id = ?", [id]);
-    scheduler.scheduleReminder(updated);
+
+    // --- REMOVED ---
+    // scheduler.scheduleReminder(updated);
 
     res.json({ ok: true, reminder: updated });
   } catch (err) {
@@ -108,7 +115,7 @@ router.put("/:id", auth, async (req, res, next) => {
   }
 });
 
-// DELETE soft-delete
+// DELETE route - scheduler call is REMOVED
 router.delete("/:id", auth, async (req, res, next) => {
   try {
     const userId = req.user.id;
@@ -121,6 +128,9 @@ router.delete("/:id", auth, async (req, res, next) => {
 
     if (!result.changes)
       return res.status(404).json({ ok: false, message: "Reminder not found" });
+
+    // --- REMOVED ---
+    // scheduler.cancelReminder(id);
 
     res.json({ ok: true });
   } catch (err) {

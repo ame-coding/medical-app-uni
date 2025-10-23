@@ -12,8 +12,7 @@ import registerroute from "./routes/registerapi.js";
 import remindersRouter from "./routes/reminders.js";
 
 import db from "./dbfiles/db.js";
-import scheduler from "./notifications/scheduler.js";
-import pushTokenRouter from "./routes/pushToken.js";
+// (No scheduler or pushToken needed)
 
 dotenv.config();
 
@@ -34,10 +33,36 @@ app.use("/api/register", registerroute);
 app.use("/api/auth", loginRouter);
 app.use("/api/records", recordsRouter);
 app.use("/api/reminders", remindersRouter);
-app.use("/api/me", pushTokenRouter);
 
 // health check
 app.get("/health", (_req, res) => res.json({ ok: true }));
+
+// --- ADD THIS NEW FUNCTION ---
+/**
+ * This function finds all one-time (non-repeating) reminders
+ * that are in the past and marks them as inactive (is_active = 0).
+ */
+async function cleanupExpiredReminders() {
+  console.log("Running automatic cleanup of expired reminders...");
+  try {
+    const result = await db.run(
+      `
+      UPDATE reminders
+      SET is_active = 0, updated_at = CURRENT_TIMESTAMP
+      WHERE is_active = 1
+        AND (repeat_interval IS NULL OR repeat_interval = 'none')
+        AND datetime(date_time) < datetime('now')
+    `
+    );
+
+    if (result.changes > 0) {
+      console.log(`Cleaned up ${result.changes} expired reminders.`);
+    }
+  } catch (err) {
+    console.error("Error during reminder cleanup:", err);
+  }
+}
+// --- END NEW FUNCTION ---
 
 // centralized error handler
 app.use((err, _req, res, _next) => {
@@ -50,7 +75,15 @@ app.use((err, _req, res, _next) => {
 app.listen(PORT, "0.0.0.0", async () => {
   console.log(`Server running on http://localhost:${PORT}`);
 
-  // ensure DB & schedule reminders
+  // ensure DB
   if (db.init) await db.init();
-  await scheduler.init(db);
+
+  // --- ADD THIS BLOCK ---
+  // Run cleanup on server start
+  await cleanupExpiredReminders();
+
+  // And run it automatically every 6 hours
+  const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+  setInterval(cleanupExpiredReminders, SIX_HOURS_MS);
+  // --- END BLOCK ---
 });
