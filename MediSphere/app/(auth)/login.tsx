@@ -86,6 +86,14 @@ export default function LoginScreen() {
         MEDISPHERE
       </Text>
 
+      <Text 
+      style={[
+        styles.text, 
+        { marginBottom: 3, marginTop: 3 }
+      ]}
+    >
+      Username
+    </Text>
       <TextInput
         style={styles.input}
         placeholder="Username"
