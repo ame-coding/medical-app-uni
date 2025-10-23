@@ -1,3 +1,4 @@
+// app/addItems/newReminders.tsx
 import React, { useState } from "react";
 import {
   View,
@@ -65,6 +66,7 @@ export default function NewReminders() {
         repeat_interval: repeat !== "none" ? repeat : null,
       };
 
+      // 1. Create reminder on server
       const res = await authFetch(`${BASE_URL}/reminders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -81,13 +83,18 @@ export default function NewReminders() {
       const reminder = json.reminder;
 
       try {
+        // 2. Get permissions (required for local notifications)
         await ensurePermissionsAndChannel();
-      } catch (err) {
-        console.warn("Notifications setup failed:", err);
+      } catch (err: any) {
+        console.warn("Notifications setup failed:", err.message);
+        // Don't block, just warn.
       }
 
       try {
+        // 3. Schedule local notification on the device
         const localId = await schedule(reminder);
+
+        // 4. Update the server with the new local notification ID
         await authFetch(`${BASE_URL}/reminders/${reminder.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },

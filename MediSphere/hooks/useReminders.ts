@@ -1,7 +1,9 @@
+// app/hooks/useReminders.ts
 import { useState, useCallback } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import BASE_URL from "../lib/apiconfig";
 import { authFetch } from "../lib/auth";
+import { cancel } from "./notificationHelper"; // <-- IMPORT CANCEL
 
 export type Reminder = {
   id: number;
@@ -63,7 +65,17 @@ export default function useReminders() {
     onDone: (() => void) | null = null
   ) => {
     try {
+      // 1. Find the reminder to get its local notification ID
+      const reminderToCancel = reminders.find((r) => r.id === id);
+      if (reminderToCancel && reminderToCancel.notification_id) {
+        // 2. Cancel the local notification on the device
+        await cancel(reminderToCancel.notification_id);
+      }
+
+      // 3. Delete the reminder from the server
       await authFetch(`${BASE_URL}/reminders/${id}`, { method: "DELETE" });
+
+      // 4. Refresh the list
       await fetchReminders();
       if (onDone) onDone();
     } catch (err) {
