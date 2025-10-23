@@ -5,7 +5,6 @@ import { useAuth } from "../../providers/AuthProvider";
 import BASE_URL from "../../lib/apiconfig";
 import AppButton from "@/components/appButton";
 import { useTheme } from "../../hooks/useTheme";
-import { registerExpoPushToken } from "../utils/registerPushToken";
 
 export default function LoginScreen() {
   const { styles } = useTheme();
@@ -53,10 +52,11 @@ export default function LoginScreen() {
         role === "admin" ? "/(admin_tabs)/dashboard" : "/(tabs)/home"
       );
 
-      // Register push token in background (non-blocking)
-      registerExpoPushToken().catch((err) =>
-        console.warn("Push token registration failed:", err)
-      );
+      // --- PUSH TOKEN REGISTRATION REMOVED ---
+      // registerExpoPushToken().catch((err) =>
+      //   console.warn("Push token registration failed:", err)
+      // );
+      // --- END REMOVAL ---
     } catch (err) {
       console.error("Login error:", err);
       Alert.alert("Error", "Network error");
@@ -86,14 +86,9 @@ export default function LoginScreen() {
         MEDISPHERE
       </Text>
 
-      <Text 
-      style={[
-        styles.text, 
-        { marginBottom: 3, marginTop: 3 }
-      ]}
-    >
-      Username
-    </Text>
+      <Text style={[styles.text, { marginBottom: 3, marginTop: 3 }]}>
+        Username
+      </Text>
       <TextInput
         style={styles.input}
         placeholder="Username"
@@ -101,14 +96,9 @@ export default function LoginScreen() {
         value={username}
         onChangeText={setUsername}
       />
-      <Text 
-      style={[
-        styles.text, 
-        { marginBottom: 3, marginTop: 3 }
-      ]}
-    >
-      Password
-    </Text>
+      <Text style={[styles.text, { marginBottom: 3, marginTop: 3 }]}>
+        Password
+      </Text>
       <TextInput
         style={styles.input}
         placeholder="Password"
