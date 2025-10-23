@@ -47,21 +47,20 @@ async function cleanupExpiredReminders() {
   try {
     const result = await db.run(
       `
-      UPDATE reminders
-      SET is_active = 0, updated_at = CURRENT_TIMESTAMP
-      WHERE is_active = 1
-        AND (repeat_interval IS NULL OR repeat_interval = 'none')
+      DELETE FROM reminders
+      WHERE (repeat_interval IS NULL OR repeat_interval = 'none')
         AND datetime(date_time) < datetime('now')
     `
     );
 
     if (result.changes > 0) {
-      console.log(`Cleaned up ${result.changes} expired reminders.`);
+      console.log(`Deleted ${result.changes} expired reminders.`);
     }
   } catch (err) {
     console.error("Error during reminder cleanup:", err);
   }
 }
+
 // --- END NEW FUNCTION ---
 
 // centralized error handler
@@ -82,8 +81,8 @@ app.listen(PORT, "0.0.0.0", async () => {
   // Run cleanup on server start
   await cleanupExpiredReminders();
 
-  // And run it automatically every 6 hours
-  const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
-  setInterval(cleanupExpiredReminders, SIX_HOURS_MS);
+  // And run it automatically every 10 minutes
+  const TEN_MINUTES_MS = 10 * 60 * 1000;
+  setInterval(cleanupExpiredReminders, TEN_MINUTES_MS);
   // --- END BLOCK ---
 });
