@@ -12,8 +12,9 @@ import registerroute from "./routes/registerapi.js";
 import remindersRouter from "./routes/reminders.js";
 
 import db from "./dbfiles/db.js";
-import scheduler from "./notifications/scheduler.js";
-import pushTokenRouter from "./routes/pushToken.js";
+// --- REMOVED ---
+// import scheduler from "./notifications/scheduler.js";
+// import pushTokenRouter from "./routes/pushToken.js";
 
 dotenv.config();
 
@@ -34,7 +35,8 @@ app.use("/api/register", registerroute);
 app.use("/api/auth", loginRouter);
 app.use("/api/records", recordsRouter);
 app.use("/api/reminders", remindersRouter);
-app.use("/api/me", pushTokenRouter);
+// --- REMOVED ---
+// app.use("/api/me", pushTokenRouter);
 
 // health check
 app.get("/health", (_req, res) => res.json({ ok: true }));
@@ -50,7 +52,8 @@ app.use((err, _req, res, _next) => {
 app.listen(PORT, "0.0.0.0", async () => {
   console.log(`Server running on http://localhost:${PORT}`);
 
-  // ensure DB & schedule reminders
+  // ensure DB
   if (db.init) await db.init();
-  await scheduler.init(db);
+  // --- REMOVED ---
+  // await scheduler.init(db);
 });
