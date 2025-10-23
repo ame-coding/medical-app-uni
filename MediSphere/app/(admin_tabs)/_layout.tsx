@@ -3,9 +3,22 @@ import React from "react";
 import { Tabs } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
+import { StyleSheet, View,StatusBar, Text } from "react-native";
 import DarkLightButton from "../../components/darklight";
+
+import { useEffect } from "react";
+import * as NavigationBar from "expo-navigation-bar";
+
 export default function AdminTabsLayout() {
-  const { colors } = useTheme();
+  const { barStyle,colors,styles } = useTheme();
+
+
+   useEffect(() => {
+  NavigationBar.setButtonStyleAsync(
+    barStyle === "dark-content" ? "dark" : "light"
+  );
+}, [barStyle]);
+
 
   const TabIcon = ({
     name,
@@ -16,14 +29,20 @@ export default function AdminTabsLayout() {
   }) => <MaterialIcons name={name} size={size} color={colors.primaryVariant} />;
 
   return (
+    <>
+            <StatusBar barStyle={barStyle} backgroundColor={colors.background} />
     <Tabs
       screenOptions={{
          headerRight: () => <DarkLightButton />,
         tabBarActiveTintColor: colors.primaryVariant,
         tabBarInactiveTintColor: "#9CA3AF",
         headerShown: true,
+        tabBarStyle: { backgroundColor: colors.background},
+        headerStyle: styles.genback,
+        headerTintColor: colors.text,
       }}
     >
+     
       <Tabs.Screen
         name="dashboard"
         options={{
@@ -53,5 +72,6 @@ export default function AdminTabsLayout() {
         }}
       />
     </Tabs>
+       </>
   );
 }

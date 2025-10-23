@@ -67,7 +67,7 @@ export default function Home() {
           renderItem={({ item }) => (
             <View style={{ marginRight: sizes.gap, width: 160 }}>
               <View style={[styles.card, { padding: 12 }]}>
-                <Text style={{ fontWeight: "700" }}>{item.label}</Text>
+                <Text style={[styles.text, { fontWeight: "700"}]}>{item.label}</Text>
                 <Text style={[styles.mutedText, { marginTop: 6 }]}>
                   {item.hint}
                 </Text>

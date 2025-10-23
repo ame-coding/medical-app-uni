@@ -16,7 +16,7 @@ export default function RecordCard({ record, onDelete }: Props) {
       <Text style={styles.heading}>{record.record_title}</Text>
       <Text style={styles.mutedText}>{record.date}</Text>
       {record.description ? (
-        <Text style={{ marginTop: 8 }}>{record.description}</Text>
+        <Text style={styles.mutedText}>{record.description}</Text>
       ) : null}
 
       <View
