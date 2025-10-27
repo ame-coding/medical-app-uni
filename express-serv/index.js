@@ -10,6 +10,7 @@ import loginRouter from "./routes/loginapi.js";
 import recordsRouter from "./routes/records.js";
 import registerroute from "./routes/registerapi.js";
 import remindersRouter from "./routes/reminders.js";
+import profileRouter from "./routes/profile.js";
 
 import db from "./dbfiles/db.js";
 // (No scheduler or pushToken needed)
@@ -33,6 +34,7 @@ app.use("/api/register", registerroute);
 app.use("/api/auth", loginRouter);
 app.use("/api/records", recordsRouter);
 app.use("/api/reminders", remindersRouter);
+app.use("/api/profile", profileRouter); // <--- ROUTE MOUNTED
 
 // health check
 app.get("/health", (_req, res) => res.json({ ok: true }));
