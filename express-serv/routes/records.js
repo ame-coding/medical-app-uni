@@ -1,17 +1,15 @@
 // express-serv/routes/records.js
 import express from "express";
-import db from "../dbfiles/db.js"; // <-- IMPORT SHARED DB
+import db from "../dbfiles/db.js"; // shared sqlite wrapper
 import { auth } from "../middleware/auth.js";
 
 const router = express.Router();
 
-// GET /api/records -> records for current user
+// GET / -> list user's records
 router.get("/", auth, async (req, res) => {
-  // <-- Added async
   try {
     const userId = req.user.id;
     const rows = await db.all(
-      // <-- Changed to await
       `SELECT id, user_id, record_title, description, date, doctor_name, hospital_name, file_url, created_at
        FROM records WHERE user_id = ? ORDER BY date DESC, created_at DESC`,
       [userId]
@@ -23,16 +21,14 @@ router.get("/", auth, async (req, res) => {
   }
 });
 
-// GET /api/records/:id -> single record (only owner or admin)
+// GET /:id -> fetch single record
 router.get("/:id", auth, async (req, res) => {
-  // <-- Added async
   try {
     const userId = req.user.id;
     const isAdmin = req.user.role === "admin";
-    const recordId = req.params.id;
+    const recordId = Number(req.params.id);
 
     const row = await db.get(
-      // <-- Changed to await
       `SELECT id, user_id, record_title, description, date, doctor_name, hospital_name, file_url, created_at
        FROM records WHERE id = ?`,
       [recordId]
@@ -41,6 +37,7 @@ router.get("/:id", auth, async (req, res) => {
     if (!row) return res.status(404).json({ ok: false, message: "Not found" });
     if (!isAdmin && row.user_id !== userId)
       return res.status(403).json({ ok: false, message: "Forbidden" });
+
     res.json({ ok: true, record: row });
   } catch (err) {
     console.error(`GET /records/${req.params.id} error:`, err.message);
@@ -48,9 +45,8 @@ router.get("/:id", auth, async (req, res) => {
   }
 });
 
-// POST /api/records -> create new record for current user
+// POST / -> create
 router.post("/", auth, async (req, res) => {
-  // <-- Added async
   const userId = req.user.id;
   const {
     record_title,
@@ -67,23 +63,18 @@ router.post("/", auth, async (req, res) => {
       .json({ ok: false, message: "record_title and date are required" });
   }
 
-  const sql =
-    "INSERT INTO records (user_id, record_title, description, date, doctor_name, hospital_name, file_url) VALUES (?, ?, ?, ?, ?, ?, ?)";
-
   try {
-    const result = await db.run(
-      // <-- Changed to await
-      sql,
-      [
-        userId,
-        record_title,
-        description || "",
-        date,
-        doctor_name,
-        hospital_name,
-        file_url,
-      ]
-    );
+    const sql =
+      "INSERT INTO records (user_id, record_title, description, date, doctor_name, hospital_name, file_url) VALUES (?, ?, ?, ?, ?, ?, ?)";
+    const result = await db.run(sql, [
+      userId,
+      record_title,
+      description || "",
+      date,
+      doctor_name,
+      hospital_name,
+      file_url,
+    ]);
 
     const created = {
       id: result.lastID,
@@ -102,27 +93,89 @@ router.post("/", auth, async (req, res) => {
   }
 });
 
-// DELETE /api/records/:id -> delete (owner or admin)
+// PUT /:id -> update record (owner or admin)
+router.put("/:id", auth, async (req, res) => {
+  const userId = req.user.id;
+  const isAdmin = req.user.role === "admin";
+  const recordId = Number(req.params.id);
+
+  try {
+    // check existence & ownership
+    const existing = await db.get("SELECT user_id FROM records WHERE id = ?", [
+      recordId,
+    ]);
+    if (!existing)
+      return res.status(404).json({ ok: false, message: "Not found" });
+    if (!isAdmin && existing.user_id !== userId)
+      return res.status(403).json({ ok: false, message: "Forbidden" });
+
+    // allowed fields to update
+    const allowed = [
+      "record_title",
+      "description",
+      "date",
+      "doctor_name",
+      "hospital_name",
+      "file_url",
+    ];
+    const sets = [];
+    const params = [];
+
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) {
+        sets.push(`${key} = ?`);
+        params.push(req.body[key]);
+      }
+    }
+
+    if (sets.length === 0)
+      return res
+        .status(400)
+        .json({ ok: false, message: "No fields to update" });
+
+    // update timestamp too
+    sets.push("created_at = created_at"); // keep created_at
+    // add updated_at if table has it; we'll attempt to set it if column exists (best-effort)
+    // But not required — you can add updated_at column later.
+
+    const sql = `UPDATE records SET ${sets.join(", ")} WHERE id = ?`;
+    params.push(recordId);
+
+    console.log("PUT /records/:id SQL:", sql, "params:", params);
+    const result = await db.run(sql, params);
+
+    if (!result.changes)
+      return res.status(404).json({ ok: false, message: "Record not found" });
+
+    const updated = await db.get(
+      `SELECT id, user_id, record_title, description, date, doctor_name, hospital_name, file_url, created_at
+       FROM records WHERE id = ?`,
+      [recordId]
+    );
+
+    res.json({ ok: true, record: updated });
+  } catch (err) {
+    console.error(`PUT /records/${recordId} error:`, err.message || err);
+    return res.status(500).json({ ok: false, message: "DB update error" });
+  }
+});
+
+// DELETE /:id -> delete (owner or admin)
 router.delete("/:id", auth, async (req, res) => {
-  // <-- Added async
-  console.log("DELETE /records/:id called, id =", req.params.id);
   const userId = req.user.id;
   const isAdmin = req.user.role === "admin";
   const recordId = req.params.id;
 
   try {
-    // verify existence and ownership
     const row = await db.get("SELECT user_id FROM records WHERE id = ?", [
       recordId,
-    ]); // <-- Changed to await
+    ]);
 
     if (!row) return res.status(404).json({ ok: false, message: "Not found" });
     if (!isAdmin && row.user_id !== userId)
       return res.status(403).json({ ok: false, message: "Forbidden" });
 
-    // Perform the delete
-    const result = await db.run("DELETE FROM records WHERE id = ?", [recordId]); // <-- Changed to await
-
+    const result = await db.run("DELETE FROM records WHERE id = ?", [recordId]);
     if (result.changes === 0)
       return res.status(404).json({ ok: false, message: "Record not found" });
 
