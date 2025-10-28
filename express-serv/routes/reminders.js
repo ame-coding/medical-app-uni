@@ -1,13 +1,17 @@
+// express-serv/routes/reminders.js
 import express from "express";
 import { auth } from "../middleware/auth.js";
 import db from "../dbfiles/db.js";
-import scheduler from "../notifications/scheduler.js";
 
 const router = express.Router();
 
+/**
+ * List upcoming active reminders
+ */
 router.get("/", auth, async (req, res, next) => {
   try {
     const userId = req.user.id;
+    console.log("GET /reminders for user", userId);
     const rows = await db.all(
       `SELECT * FROM reminders
        WHERE user_id = ? AND is_active = 1 AND datetime(date_time) >= datetime('now')
@@ -16,10 +20,35 @@ router.get("/", auth, async (req, res, next) => {
     );
     res.json({ ok: true, reminders: rows || [] });
   } catch (err) {
+    console.error("GET /reminders error:", err);
     next(err);
   }
 });
 
+/**
+ * Get single reminder by id (for edit screen)
+ */
+router.get("/:id", auth, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const id = Number(req.params.id);
+    console.log("GET /reminders/:id", { userId, id });
+    const row = await db.get(
+      "SELECT * FROM reminders WHERE id = ? AND user_id = ?",
+      [id, userId]
+    );
+    if (!row)
+      return res.status(404).json({ ok: false, message: "Reminder not found" });
+    res.json({ ok: true, reminder: row });
+  } catch (err) {
+    console.error("GET /reminders/:id error:", err);
+    next(err);
+  }
+});
+
+/**
+ * Create reminder (scheduler removed)
+ */
 router.post("/", auth, async (req, res, next) => {
   try {
     const userId = req.user.id;
@@ -29,7 +58,6 @@ router.post("/", auth, async (req, res, next) => {
       date_time,
       repeat_interval = null,
     } = req.body;
-
     if (!title || !date_time)
       return res
         .status(400)
@@ -51,19 +79,21 @@ router.post("/", auth, async (req, res, next) => {
         .status(500)
         .json({ ok: false, message: "Failed to fetch new reminder" });
 
-    scheduler.scheduleReminder(newRow);
     res.json({ ok: true, reminder: newRow });
   } catch (err) {
+    console.error("POST /reminders error:", err);
     next(err);
   }
 });
 
-// ... keep PUT and DELETE unchanged, just ensure you call scheduler.scheduleReminder(updated) safely
-// PUT update reminder
+/**
+ * Update reminder
+ */
 router.put("/:id", auth, async (req, res, next) => {
   try {
     const userId = req.user.id;
     const id = Number(req.params.id);
+
     const allowed = [
       "title",
       "description",
@@ -95,24 +125,27 @@ router.put("/:id", auth, async (req, res, next) => {
     )} WHERE user_id = ? AND id = ?`;
     params.push(userId, id);
 
+    console.log("PUT /reminders/:id SQL:", sql, "params:", params);
     const result = await db.run(sql, params);
     if (!result.changes)
       return res.status(404).json({ ok: false, message: "Reminder not found" });
 
     const updated = await db.get("SELECT * FROM reminders WHERE id = ?", [id]);
-    scheduler.scheduleReminder(updated);
-
     res.json({ ok: true, reminder: updated });
   } catch (err) {
+    console.error("PUT /reminders/:id error:", err);
     next(err);
   }
 });
 
-// DELETE soft-delete
+/**
+ * Soft-delete reminder
+ */
 router.delete("/:id", auth, async (req, res, next) => {
   try {
     const userId = req.user.id;
     const id = Number(req.params.id);
+    console.log("DELETE /reminders/:id", { userId, id });
 
     const result = await db.run(
       `UPDATE reminders SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND id = ?`,
@@ -124,6 +157,7 @@ router.delete("/:id", auth, async (req, res, next) => {
 
     res.json({ ok: true });
   } catch (err) {
+    console.error("DELETE /reminders/:id error:", err);
     next(err);
   }
 });

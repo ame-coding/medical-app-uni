@@ -5,7 +5,7 @@ import { Platform } from "react-native";
  * IMPORTANT: this file tries to require 'expo-notifications' dynamically
  * so your app won't crash at import time if the package is missing.
  * But you must install expo-notifications for scheduling to work:
- *   expo install expo-notifications
+ * expo install expo-notifications
  */
 let Notifications: any = null;
 try {
@@ -14,6 +14,9 @@ try {
   Notifications = require("expo-notifications");
 } catch (e) {
   Notifications = null;
+  console.warn(
+    "expo-notifications package not found. Run `expo install expo-notifications`"
+  );
 }
 
 export function ensureNotificationsAvailableOrThrow() {
@@ -49,10 +52,26 @@ export async function ensurePermissionsAndChannel() {
 export async function schedule(reminder: any) {
   ensureNotificationsAvailableOrThrow();
   const when = new Date(reminder.date_time);
+
+  // Default trigger: one-time, at the specified date
   let trigger: any = when;
 
   if (reminder.repeat_interval === "daily") {
     trigger = {
+      hour: when.getHours(),
+      minute: when.getMinutes(),
+      repeats: true,
+    };
+  } else if (reminder.repeat_interval === "weekly") {
+    trigger = {
+      weekday: when.getDay() + 1, // getDay() is 0 (Sun) - 6 (Sat), Expo trigger is 1 (Sun) - 7 (Sat)
+      hour: when.getHours(),
+      minute: when.getMinutes(),
+      repeats: true,
+    };
+  } else if (reminder.repeat_interval === "monthly") {
+    trigger = {
+      day: when.getDate(), // getDate() is day of the month (1-31)
       hour: when.getHours(),
       minute: when.getMinutes(),
       repeats: true,
@@ -77,6 +96,7 @@ export async function cancel(localNotificationId: string | null) {
   try {
     await Notifications.cancelScheduledNotificationAsync(localNotificationId);
   } catch (err) {
-    console.warn("Cancel notif failed", err);
+    console.warn("Cancel local notification failed", err);
   }
 }
+

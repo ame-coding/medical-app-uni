@@ -10,10 +10,10 @@ import loginRouter from "./routes/loginapi.js";
 import recordsRouter from "./routes/records.js";
 import registerroute from "./routes/registerapi.js";
 import remindersRouter from "./routes/reminders.js";
+import profileRouter from "./routes/profile.js";
 
 import db from "./dbfiles/db.js";
-import scheduler from "./notifications/scheduler.js";
-import pushTokenRouter from "./routes/pushToken.js";
+// (No scheduler or pushToken needed)
 
 dotenv.config();
 
@@ -34,10 +34,36 @@ app.use("/api/register", registerroute);
 app.use("/api/auth", loginRouter);
 app.use("/api/records", recordsRouter);
 app.use("/api/reminders", remindersRouter);
-app.use("/api/me", pushTokenRouter);
+app.use("/api/profile", profileRouter); // <--- ROUTE MOUNTED
 
 // health check
 app.get("/health", (_req, res) => res.json({ ok: true }));
+
+// --- ADD THIS NEW FUNCTION ---
+/**
+ * This function finds all one-time (non-repeating) reminders
+ * that are in the past and marks them as inactive (is_active = 0).
+ */
+async function cleanupExpiredReminders() {
+  console.log("Running automatic cleanup of expired reminders...");
+  try {
+    const result = await db.run(
+      `
+      DELETE FROM reminders
+      WHERE (repeat_interval IS NULL OR repeat_interval = 'none')
+        AND datetime(date_time) < datetime('now')
+    `
+    );
+
+    if (result.changes > 0) {
+      console.log(`Deleted ${result.changes} expired reminders.`);
+    }
+  } catch (err) {
+    console.error("Error during reminder cleanup:", err);
+  }
+}
+
+// --- END NEW FUNCTION ---
 
 // centralized error handler
 app.use((err, _req, res, _next) => {
@@ -50,7 +76,15 @@ app.use((err, _req, res, _next) => {
 app.listen(PORT, "0.0.0.0", async () => {
   console.log(`Server running on http://localhost:${PORT}`);
 
-  // ensure DB & schedule reminders
+  // ensure DB
   if (db.init) await db.init();
-  await scheduler.init(db);
+
+  // --- ADD THIS BLOCK ---
+  // Run cleanup on server start
+  await cleanupExpiredReminders();
+
+  // And run it automatically every 10 minutes
+  const TEN_MINUTES_MS = 10 * 60 * 1000;
+  setInterval(cleanupExpiredReminders, TEN_MINUTES_MS);
+  // --- END BLOCK ---
 });
