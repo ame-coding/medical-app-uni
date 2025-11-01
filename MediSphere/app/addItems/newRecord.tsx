@@ -1,10 +1,46 @@
+// app/addItems/newRecord.tsx
 import React, { useState } from "react";
-import { View, Text, TextInput, Alert, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  Alert,
+  ScrollView,
+  TouchableOpacity,
+  Platform,
+} from "react-native";
+import * as DocumentPicker from "expo-document-picker";
 import { useTheme } from "../../hooks/useTheme";
 import AppButton from "@/components/appButton";
 import { authFetch } from "../../lib/auth";
 import BASE_URL from "../../lib/apiconfig";
 import { useRouter } from "expo-router";
+
+const guessExt = (mime?: string) =>
+  mime?.includes("pdf")
+    ? "pdf"
+    : mime?.includes("png")
+    ? "png"
+    : mime?.includes("jpeg")
+    ? "jpg"
+    : mime?.includes("jpg")
+    ? "jpg"
+    : mime?.includes("gif")
+    ? "gif"
+    : "bin";
+
+async function toFormDataPart(asset: DocumentPicker.DocumentPickerAsset) {
+  const name = asset.name ?? `upload.${guessExt(asset.mimeType ?? "")}`;
+  const type = asset.mimeType ?? "application/octet-stream";
+
+  if (Platform.OS === "web") {
+    const resp = await fetch(asset.uri);
+    const blob = await resp.blob();
+    return { kind: "web", blob, name };
+  }
+  const rnFile: any = { uri: asset.uri, name, type };
+  return { kind: "native", value: rnFile };
+}
 
 export default function NewRecord() {
   const { styles, sizes } = useTheme();
@@ -15,8 +51,25 @@ export default function NewRecord() {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [doctorName, setDoctorName] = useState("");
   const [hospitalName, setHospitalName] = useState("");
-  const [fileUrl, setFileUrl] = useState("");
+  const [selectedDocType, setSelectedDocType] = useState("");
+  const [docInfo, setDocInfo] = useState<Record<string, string>>({});
+  const [file, setFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const pickFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["application/pdf", "image/*"],
+        copyToCacheDirectory: true,
+      });
+      if (!result.canceled && result.assets.length > 0) {
+        setFile(result.assets[0]);
+      }
+    } catch (err) {
+      console.error("File selection error:", err);
+      Alert.alert("Error", "Could not select file");
+    }
+  };
 
   const handleSubmit = async () => {
     if (!title || !date) {
@@ -26,31 +79,40 @@ export default function NewRecord() {
 
     setSubmitting(true);
     try {
-      const payload = {
-        record_title: title,
-        description,
-        date,
-        doctor_name: doctorName || null,
-        hospital_name: hospitalName || null,
-        file_url: fileUrl || null,
-      };
+      const formData = new FormData();
+      formData.append("record_title", title);
+      formData.append("description", description);
+      formData.append("date", date);
+      formData.append("doctor_name", doctorName || "");
+      formData.append("hospital_name", hospitalName || "");
+      formData.append("doctype", selectedDocType || "");
+      formData.append("docinfo", JSON.stringify(docInfo));
 
-      const res = await authFetch(`${BASE_URL}/records`, {
+     if (file) {
+  const part = await toFormDataPart(file);
+  if (part.kind === "web" && part.blob) {
+    formData.append("file", part.blob, part.name);
+  } else if (part.kind === "native") {
+    formData.append("file", part.value);
+  }
+}
+
+
+      const res = await authFetch(`${BASE_URL}/records/upload`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: formData,
       });
-      const data = await res.json();
 
+      const data = await res.json();
       if (data.ok) {
-        Alert.alert("Success", "Record added!");
-        router.replace("/(tabs)/records"); // navigate back to records list
+        Alert.alert("Success", "Record added successfully!");
+        router.replace("/(tabs)/records");
       } else {
         Alert.alert("Error", data.message || "Failed to add record");
       }
     } catch (err) {
-      console.error("Add record error:", err);
-      Alert.alert("Error", "Network error");
+      console.error("Upload error:", err);
+      Alert.alert("Error", "Network or server error");
     } finally {
       setSubmitting(false);
     }
@@ -96,12 +158,20 @@ export default function NewRecord() {
         onChangeText={setHospitalName}
       />
 
-      <Text style={styles.text}>File URL</Text>
-      <TextInput
-        style={styles.input}
-        value={fileUrl}
-        onChangeText={setFileUrl}
-      />
+      <Text style={styles.text}>Attach File (optional)</Text>
+      <TouchableOpacity
+        onPress={pickFile}
+        style={[
+          styles.input,
+          {
+            justifyContent: "center",
+            alignItems: "center",
+            backgroundColor: "#f0f0f0",
+          },
+        ]}
+      >
+        <Text>{file ? file.name : "Choose File (PDF or Image)"}</Text>
+      </TouchableOpacity>
 
       <View style={{ marginTop: 20 }}>
         <AppButton

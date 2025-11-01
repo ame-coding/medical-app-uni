@@ -40,31 +40,9 @@ function all(sql, params = []) {
   });
 }
 
-// initialize reminders table if not exists
-async function init() {
-  const createReminders = `
-    CREATE TABLE IF NOT EXISTS reminders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      title TEXT NOT NULL,
-      description TEXT,
-      date_time TEXT NOT NULL,
-      repeat_interval TEXT,
-      notification_id TEXT,
-      is_active INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      last_sent_at DATETIME
-    );
-  `;
-  await run(createReminders);
-  console.log("Ensured reminders table exists");
-}
-
 export default {
   raw: rawDb,
   run,
   get,
   all,
-  init,
 };

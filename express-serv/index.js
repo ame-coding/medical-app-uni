@@ -13,7 +13,6 @@ import remindersRouter from "./routes/reminders.js";
 import profileRouter from "./routes/profile.js";
 
 import db from "./dbfiles/db.js";
-// (No scheduler or pushToken needed)
 
 dotenv.config();
 
@@ -28,6 +27,9 @@ app.use((req, _res, next) => {
   console.log(`${req.method} ${req.url}`);
   next();
 });
+// serve uploaded files statically
+const uploadsDir = path.join(process.cwd(), "userfiles", "uploads");
+app.use("/uploads", express.static(uploadsDir));
 
 // mount routers
 app.use("/api/register", registerroute);
@@ -35,6 +37,7 @@ app.use("/api/auth", loginRouter);
 app.use("/api/records", recordsRouter);
 app.use("/api/reminders", remindersRouter);
 app.use("/api/profile", profileRouter); // <--- ROUTE MOUNTED
+
 
 // health check
 app.get("/health", (_req, res) => res.json({ ok: true }));
@@ -75,9 +78,6 @@ app.use((err, _req, res, _next) => {
 
 app.listen(PORT, "0.0.0.0", async () => {
   console.log(`Server running on http://localhost:${PORT}`);
-
-  // ensure DB
-  if (db.init) await db.init();
 
   // --- ADD THIS BLOCK ---
   // Run cleanup on server start
