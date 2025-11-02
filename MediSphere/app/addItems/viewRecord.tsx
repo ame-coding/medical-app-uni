@@ -9,7 +9,7 @@ import {
   Image,
   Linking,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context"; // ✅ New import
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../../hooks/useTheme";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { authFetch } from "../../lib/auth";
@@ -36,7 +36,7 @@ export default function ViewRecord() {
       const res = await authFetch(`${BASE_URL}/records/${id}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
-      setRecord(data.record);
+      setRecord({ ...data.record, docinfo: data.record.docinfo || {} });
     } catch (err) {
       console.error("Fetch record error:", err);
       Alert.alert("Error", "Failed to load record");
@@ -46,14 +46,14 @@ export default function ViewRecord() {
     }
   };
 
-  const openFile = async (url?: string | null) => {
-    if (!url) return;
+  const handleDownload = async () => {
     try {
+      const url = `${BASE_URL}/records/download/${id}`;
       const ok = await Linking.canOpenURL(url);
       if (!ok) return Alert.alert("Invalid URL");
       await Linking.openURL(url);
     } catch (err) {
-      console.error("Open file error:", err);
+      console.error("Download error:", err);
       Alert.alert("Error", "Could not open file");
     }
   };
@@ -61,10 +61,7 @@ export default function ViewRecord() {
   if (loading)
     return (
       <View
-        style={[
-          styles.screen,
-          { justifyContent: "center", alignItems: "center" },
-        ]}
+        style={[styles.screen, { justifyContent: "center", alignItems: "center" }]}
       >
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
@@ -73,33 +70,24 @@ export default function ViewRecord() {
   if (!record)
     return (
       <View
-        style={[
-          styles.screen,
-          { justifyContent: "center", alignItems: "center" },
-        ]}
+        style={[styles.screen, { justifyContent: "center", alignItems: "center" }]}
       >
         <Text style={{ color: colors.text }}>No record found</Text>
       </View>
     );
 
-  const isImage =
-    record.file_url && record.file_url.match(/\.(jpg|jpeg|png|gif|webp)$/i);
-  const isPDF = record.file_url && record.file_url.match(/\.pdf$/i);
+  const isImage = record.file_url?.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+  const isPDF = record.file_url?.match(/\.pdf$/i);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         <Text style={styles.heading}>{record.record_title}</Text>
 
-        <Text style={[styles.text, { marginTop: 6 }]}>
-          Date: {record.date || "-"}
-        </Text>
-        <Text style={styles.text}>
-          Doctor: {record.doctor_name || "Unknown"}
-        </Text>
-        <Text style={styles.text}>
-          Hospital: {record.hospital_name || "Unknown"}
-        </Text>
+        <Text style={[styles.text, { marginTop: 6 }]}>Date: {record.date || "-"}</Text>
+        <Text style={styles.text}>Doctor: {record.doctor_name || "Unknown"}</Text>
+        <Text style={styles.text}>Hospital: {record.hospital_name || "Unknown"}</Text>
+        <Text style={styles.text}>Type: {record.doctype || "-"}</Text>
 
         {record.file_url && !record.file_missing ? (
           <View style={{ marginTop: 16 }}>
@@ -110,7 +98,6 @@ export default function ViewRecord() {
                 resizeMode="cover"
               />
             )}
-
             {isPDF && (
               <Text
                 style={{
@@ -122,9 +109,8 @@ export default function ViewRecord() {
                 📄 {record.file_url.split("/").pop()}
               </Text>
             )}
-
             <TouchableOpacity
-              onPress={() => openFile(record.file_url)}
+              onPress={handleDownload}
               style={{
                 backgroundColor: colors.primary,
                 padding: 10,
@@ -133,29 +119,36 @@ export default function ViewRecord() {
               }}
             >
               <Text
-                style={{ color: "#fff", textAlign: "center", fontWeight: "700" }}
+                style={{
+                  color: "#fff",
+                  textAlign: "center",
+                  fontWeight: "700",
+                }}
               >
-                Open File
+                Download File
               </Text>
             </TouchableOpacity>
           </View>
         ) : (
           <Text style={{ color: "red", marginTop: 12 }}>
-            {record.file_missing
-              ? "⚠️ File not found on server"
-              : "No file attached"}
+            {record.file_missing ? "⚠️ File not found" : "No file attached"}
           </Text>
         )}
 
-        {/* Description */}
         <View style={{ marginTop: 16 }}>
-          <Text style={[styles.text, { fontWeight: "700" }]}>Notes:</Text>
-          <Text style={[styles.text, { marginTop: 6 }]}>
-            {record.description || "No description provided."}
-          </Text>
+          <Text style={[styles.text, { fontWeight: "700" }]}>Details:</Text>
+          {Object.keys(record.docinfo || {}).length === 0 ? (
+            <Text style={[styles.text, { marginTop: 6 }]}>No additional details.</Text>
+          ) : (
+            Object.entries(record.docinfo).map(([k, v]: any) => (
+              <View key={k} style={{ marginTop: 6 }}>
+                <Text style={[styles.text, { fontWeight: "600" }]}>{k}</Text>
+                <Text style={styles.text}>{String(v)}</Text>
+              </View>
+            ))
+          )}
         </View>
 
-        {/* Edit Button */}
         <TouchableOpacity
           onPress={() =>
             router.push({
@@ -177,7 +170,6 @@ export default function ViewRecord() {
           </Text>
         </TouchableOpacity>
 
-        {/* Back Button */}
         <TouchableOpacity
           onPress={() => router.replace("/(tabs)/records")}
           style={{

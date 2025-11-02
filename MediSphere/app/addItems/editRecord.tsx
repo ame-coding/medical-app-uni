@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -21,9 +21,19 @@ export default function EditRecord() {
   const { id } = useLocalSearchParams();
   const [loading, setLoading] = useState(true);
   const [record, setRecord] = useState<any>(null);
-  const [newFile, setNewFile] = useState<any>(null);
+  const [newFile, setNewFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [removeFile, setRemoveFile] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const suggestedFields: Record<string, string[]> = useMemo(
+    () => ({
+      "Blood Test": ["Blood Pressure", "Blood Count"],
+      Pharmacy: ["Medicines"],
+      "X-Ray": ["Body Part", "Findings"],
+      Ultrasound: ["Region", "Observations"],
+    }),
+    []
+  );
 
   useEffect(() => {
     if (!id) return router.back();
@@ -35,7 +45,10 @@ export default function EditRecord() {
       const res = await authFetch(`${BASE_URL}/records/${id}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
-      setRecord(data.record);
+      setRecord({
+        ...data.record,
+        docinfo: data.record.docinfo || {},
+      });
     } catch (err) {
       console.error("Fetch record error:", err);
       Alert.alert("Error", "Failed to load record");
@@ -57,6 +70,14 @@ export default function EditRecord() {
     }
   };
 
+  const addCustomField = () => {
+    const key = `Field ${Object.keys(record.docinfo || {}).length + 1}`;
+    setRecord((r: any) => ({
+      ...r,
+      docinfo: { ...(r.docinfo || {}), [key]: "" },
+    }));
+  };
+
   const handleSave = async () => {
     if (!record?.record_title) return Alert.alert("Title required");
     setSaving(true);
@@ -64,7 +85,7 @@ export default function EditRecord() {
       const form = new FormData();
       form.append("record_title", record.record_title);
       form.append("description", record.description || "");
-      form.append("date", record.date);
+      form.append("date", record.date || "");
       form.append("doctor_name", record.doctor_name || "");
       form.append("hospital_name", record.hospital_name || "");
       form.append("doctype", record.doctype || "");
@@ -86,7 +107,7 @@ export default function EditRecord() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       Alert.alert("Success", "Record updated");
-      router.back();
+      router.replace("/(tabs)/records");
     } catch (err) {
       console.error("Save error:", err);
       Alert.alert("Error", "Failed to save record");
@@ -102,8 +123,10 @@ export default function EditRecord() {
       </View>
     );
 
-  const isImage = record?.file_url && record.file_url.match(/\.(jpg|jpeg|png|gif)$/i);
-  const isPDF = record?.file_url && record.file_url.match(/\.pdf$/i);
+  const fullUrl = record?.file_url;
+  const isImage = fullUrl?.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+  const isPDF = fullUrl?.match(/\.pdf$/i);
+  const fields = record?.doctype && suggestedFields[record.doctype] ? suggestedFields[record.doctype] : [];
 
   return (
     <ScrollView contentContainerStyle={{ padding: 16 }}>
@@ -145,25 +168,93 @@ export default function EditRecord() {
         onChangeText={(v) => setRecord({ ...record, hospital_name: v })}
       />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Document Type"
-        value={record.doctype || ""}
-        onChangeText={(v) => setRecord({ ...record, doctype: v })}
-      />
+      <Text style={[styles.text, { marginTop: 12 }]}>Document Type</Text>
+      {["Blood Test", "Pharmacy", "X-Ray", "Ultrasound"].map((t) => (
+        <TouchableOpacity
+          key={t}
+          onPress={() => setRecord({ ...record, doctype: t, docinfo: {} })}
+          style={{
+            padding: 10,
+            borderWidth: 1,
+            borderColor: record.doctype === t ? "#007AFF" : "#ccc",
+            borderRadius: 8,
+            marginVertical: 5,
+          }}
+        >
+          <Text>{t}</Text>
+        </TouchableOpacity>
+      ))}
+
+      {!!record.doctype && (
+        <View style={{ marginTop: 10 }}>
+          <Text style={[styles.text, { fontWeight: "700" }]}>{record.doctype} Details</Text>
+
+          {fields.map((label) => (
+            <View key={label}>
+              <Text style={styles.text}>{label}</Text>
+              <TextInput
+                style={styles.input}
+                value={record.docinfo?.[label] || ""}
+                onChangeText={(val) =>
+                  setRecord((r: any) => ({
+                    ...r,
+                    docinfo: { ...(r.docinfo || {}), [label]: val },
+                  }))
+                }
+              />
+            </View>
+          ))}
+
+          {Object.keys(record.docinfo || {})
+            .filter((k) => !fields.includes(k))
+            .map((k) => (
+              <View key={k}>
+                <Text style={styles.text}>{k}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={record.docinfo[k]}
+                  onChangeText={(v) =>
+                    setRecord((r: any) => ({
+                      ...r,
+                      docinfo: { ...(r.docinfo || {}), [k]: v },
+                    }))
+                  }
+                />
+              </View>
+            ))}
+
+          <TouchableOpacity
+            onPress={addCustomField}
+            style={{
+              marginTop: 8,
+              backgroundColor: "#eee",
+              padding: 10,
+              borderRadius: 8,
+              alignItems: "center",
+            }}
+          >
+            <Text>+ Add Custom Field</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {record?.file_url && !record.file_missing && !removeFile ? (
         <View style={{ marginTop: 10 }}>
           {isImage && (
             <Image
-              source={{ uri: record.file_url }}
+              source={{ uri: fullUrl }}
               style={{ width: "100%", aspectRatio: 1, borderRadius: 8 }}
             />
           )}
-          {isPDF && <Text>📄 {record.file_url.split("/").pop()}</Text>}
+          {isPDF && <Text>📄 {fullUrl.split("/").pop()}</Text>}
           <TouchableOpacity
             onPress={() => setRemoveFile(true)}
-            style={{ backgroundColor: "red", padding: 8, borderRadius: 8, marginTop: 8 }}
+            style={{
+              backgroundColor: "red",
+              padding: 8,
+              borderRadius: 8,
+              marginTop: 8,
+            }}
           >
             <Text style={{ color: "#fff", textAlign: "center" }}>Remove File</Text>
           </TouchableOpacity>

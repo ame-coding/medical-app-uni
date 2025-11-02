@@ -21,8 +21,7 @@ export default function RecordsScreen() {
   const { styles, sizes, colors } = useTheme();
   const { user, loading } = useAuth();
   const router = useRouter();
-  const { records, loading: recordsLoading, loadRecords, deleteRecord } =
-    useRecords();
+  const { records, loading: recordsLoading, loadRecords, deleteRecord } = useRecords();
   const [selectedDetails, setSelectedDetails] = useState<any>(null);
 
   useFocusEffect(
@@ -32,17 +31,15 @@ export default function RecordsScreen() {
     }, [user, loadRecords])
   );
 
-  // handle download using backend route
-  const handleDownload = (recordId: number) => {
-    const url = `${BASE_URL}/records/download/${recordId}`;
+  const handleDownload = (id: number) => {
+    const url = `${BASE_URL}/records/download/${id}`;
     Linking.openURL(url);
   };
 
-  // render each record item
   const renderRecord = ({ item }: any) => {
     const isImage = item.file_url?.match(/\.(jpg|jpeg|png|gif|webp)$/i);
     const isPDF = item.file_url?.match(/\.pdf$/i);
-    const hasDocInfo = item.doc_info && Object.keys(item.doc_info).length > 0;
+    const hasDocInfo = item.docinfo && Object.keys(item.docinfo).length > 0;
 
     return (
       <View
@@ -54,14 +51,9 @@ export default function RecordsScreen() {
           elevation: 2,
         }}
       >
-        {/* Title */}
-        <Text style={[styles.text, { fontWeight: "700" }]}>
-          {item.record_title}
-        </Text>
+        <Text style={[styles.text, { fontWeight: "700" }]}>{item.record_title}</Text>
         <Text style={[styles.mutedText, { marginBottom: 8 }]}>{item.date}</Text>
 
-        {/* File preview */}
-        {/* ✅ Handle missing or deleted files gracefully */}
         {item.file_url && !item.file_missing ? (
           <>
             {isImage && (
@@ -74,12 +66,8 @@ export default function RecordsScreen() {
                   backgroundColor: "#f5f5f5",
                 }}
                 resizeMode="cover"
-                onError={() =>
-                  console.warn(`Image failed to load: ${item.file_url}`)
-                }
               />
             )}
-
             {isPDF && (
               <View
                 style={{
@@ -101,22 +89,11 @@ export default function RecordsScreen() {
               fontStyle: "italic",
             }}
           >
-            {item.file_missing
-              ? "File not found on server"
-              : "No file attached"}
+            {item.file_missing ? "File not found" : "No file attached"}
           </Text>
         )}
 
-        {/* Action Buttons */}
-        <View
-          style={{
-            flexDirection: "row",
-            flexWrap: "wrap",
-            gap: 10,
-            marginTop: 10,
-          }}
-        >
-          {/* Download */}
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 10 }}>
           {item.file_url && !item.file_missing && (
             <TouchableOpacity
               onPress={() => handleDownload(item.id)}
@@ -131,10 +108,9 @@ export default function RecordsScreen() {
             </TouchableOpacity>
           )}
 
-          {/* View Details */}
           {hasDocInfo && (
             <TouchableOpacity
-              onPress={() => setSelectedDetails(item.doc_info)}
+              onPress={() => setSelectedDetails(item.docinfo)}
               style={{
                 backgroundColor: colors.secondary,
                 paddingVertical: 6,
@@ -142,27 +118,34 @@ export default function RecordsScreen() {
                 borderRadius: 8,
               }}
             >
-              <Text style={{ color: "#fff", fontWeight: "600" }}>
-                View Details
-              </Text>
+              <Text style={{ color: "#fff", fontWeight: "600" }}>View Details</Text>
             </TouchableOpacity>
           )}
 
-          {/* Full Record */}
-      <TouchableOpacity
-  onPress={() => router.push(`/records/${item.id}` as any)}
-  style={{
-    backgroundColor: "#444",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-  }}
->
-  <Text style={{ color: "#fff", fontWeight: "600" }}>Full Record</Text>
-</TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.push({ pathname: "../addItems/viewRecord", params: { id: item.id } })}
+            style={{
+              backgroundColor: "#444",
+              paddingVertical: 6,
+              paddingHorizontal: 12,
+              borderRadius: 8,
+            }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "600" }}>Full Record</Text>
+          </TouchableOpacity>
 
+          <TouchableOpacity
+            onPress={() => router.push({ pathname: "../addItems/editRecord", params: { id: item.id } })}
+            style={{
+              backgroundColor: "#6c5ce7",
+              paddingVertical: 6,
+              paddingHorizontal: 12,
+              borderRadius: 8,
+            }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "600" }}>Edit</Text>
+          </TouchableOpacity>
 
-          {/* Delete Record */}
           <TouchableOpacity
             onPress={() => deleteRecord(item.id)}
             style={{
@@ -179,22 +162,15 @@ export default function RecordsScreen() {
     );
   };
 
-  // initial loading state
   if (loading)
     return (
-      <View
-        style={[
-          styles.screen,
-          { justifyContent: "center", alignItems: "center" },
-        ]}
-      >
+      <View style={[styles.screen, { justifyContent: "center", alignItems: "center" }]}>
         <ActivityIndicator size="large" />
       </View>
     );
 
   return (
     <View style={styles.screen}>
-      {/* Header */}
       <View
         style={{
           flexDirection: "row",
@@ -205,27 +181,18 @@ export default function RecordsScreen() {
       >
         <Text style={styles.heading}>Medical Records</Text>
         <TouchableOpacity onPress={() => router.push("../addItems/newRecord")}>
-          <Text style={{ color: colors.primary, fontWeight: "700" }}>
-            + Add
-          </Text>
+          <Text style={{ color: colors.primary, fontWeight: "700" }}>+ Add</Text>
         </TouchableOpacity>
       </View>
 
-      {recordsLoading && (
-        <ActivityIndicator style={{ marginVertical: sizes.gap }} />
-      )}
+      {recordsLoading && <ActivityIndicator style={{ marginVertical: sizes.gap }} />}
 
       {records.length === 0 && !recordsLoading ? (
         <Text style={styles.mutedText}>No records yet.</Text>
       ) : (
-        <FlatList
-          data={records}
-          keyExtractor={(r) => r.id.toString()}
-          renderItem={renderRecord}
-        />
+        <FlatList data={records} keyExtractor={(r) => r.id.toString()} renderItem={renderRecord} />
       )}
 
-      {/* Modal for doc_info JSON */}
       <Modal
         visible={!!selectedDetails}
         transparent
@@ -250,9 +217,7 @@ export default function RecordsScreen() {
               padding: 16,
             }}
           >
-            <Text style={{ fontWeight: "700", fontSize: 18, marginBottom: 10 }}>
-              Record Details
-            </Text>
+            <Text style={{ fontWeight: "700", fontSize: 18, marginBottom: 10 }}>Record Details</Text>
             <ScrollView>
               {Object.entries(selectedDetails || {}).map(([key, value]) => (
                 <View key={key} style={{ marginBottom: 8 }}>

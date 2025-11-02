@@ -1,4 +1,3 @@
-// express-serv/routes/records.js
 import express from "express";
 import multer from "multer";
 import path from "path";
@@ -8,14 +7,13 @@ import { auth } from "../middleware/auth.js";
 
 const router = express.Router();
 
-// Base upload directory
 const baseUploadDir = path.join(process.cwd(), "userfiles", "uploads");
 if (!fs.existsSync(baseUploadDir)) fs.mkdirSync(baseUploadDir, { recursive: true });
 
 // --- Configure Multer ---
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const userId = req.user?.id;
+  destination: function (req, _file, cb) {
+    const userId = req.user?.id ?? "unknown";
     const userDir = path.join(baseUploadDir, String(userId));
     if (!fs.existsSync(userDir)) fs.mkdirSync(userDir, { recursive: true });
     cb(null, userDir);
@@ -27,7 +25,11 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// --- GET all records ---
+function fileKeyToPath(key) {
+  return key ? path.join(baseUploadDir, key) : null;
+}
+
+// --- GET /records (all for user) ---
 router.get("/", auth, async (req, res) => {
   try {
     const rows = await db.all(
@@ -39,43 +41,53 @@ router.get("/", auth, async (req, res) => {
       [req.user.id]
     );
 
-    const normalized = rows.map((r) => {
-      let info = {};
+    const host = `${req.protocol}://${req.get("host")}`;
+
+    const formatted = rows.map((r) => {
+      let parsedInfo = {};
       try {
-        info = r.docinfo ? JSON.parse(r.docinfo) : {};
+        parsedInfo = r.docinfo ? JSON.parse(r.docinfo) : {};
       } catch {}
-      const filePath = r.file_url
-        ? path.join(baseUploadDir, String(r.user_id), path.basename(r.file_url))
-        : null;
-      const file_missing = filePath && !fs.existsSync(filePath);
-      return { ...r, docinfo: info, file_missing };
+      const absUrl = r.file_url ? `${host}/uploads/${r.file_url}` : null;
+      const missing = r.file_url ? !fs.existsSync(fileKeyToPath(r.file_url)) : false;
+
+      return {
+        ...r,
+        docinfo: parsedInfo,
+        file_url: absUrl, // send absolute URL only in API response
+        file_missing: missing,
+      };
     });
 
-    res.json({ ok: true, records: normalized });
+    res.json({ ok: true, records: formatted });
   } catch (err) {
     console.error("GET /records error:", err);
     res.status(500).json({ ok: false, message: "Database error" });
   }
 });
 
-// --- GET single record ---
+// --- GET /records/:id ---
 router.get("/:id", auth, async (req, res) => {
   try {
-    const record = await db.get(`SELECT * FROM records WHERE id = ?`, [req.params.id]);
+    const record = await db.get(`SELECT * FROM records WHERE id=?`, [req.params.id]);
     if (!record) return res.status(404).json({ ok: false, message: "Not found" });
     if (record.user_id !== req.user.id && req.user.role !== "admin")
       return res.status(403).json({ ok: false, message: "Forbidden" });
 
+    const host = `${req.protocol}://${req.get("host")}`;
     try {
       record.docinfo = record.docinfo ? JSON.parse(record.docinfo) : {};
     } catch {
       record.docinfo = {};
     }
 
-    const filePath = record.file_url
-      ? path.join(baseUploadDir, String(record.user_id), path.basename(record.file_url))
+    record.file_missing = record.file_url
+      ? !fs.existsSync(fileKeyToPath(record.file_url))
+      : false;
+
+    record.file_url = record.file_url
+      ? `${host}/uploads/${record.file_url}`
       : null;
-    record.file_missing = filePath && !fs.existsSync(filePath);
 
     res.json({ ok: true, record });
   } catch (err) {
@@ -84,7 +96,7 @@ router.get("/:id", auth, async (req, res) => {
   }
 });
 
-// --- POST /upload (file optional) ---
+// --- POST /records/upload ---
 router.post("/upload", auth, upload.single("file"), async (req, res) => {
   const userId = req.user.id;
   const {
@@ -101,17 +113,11 @@ router.post("/upload", auth, upload.single("file"), async (req, res) => {
     return res.status(400).json({ ok: false, message: "Title and date required" });
 
   try {
-    const protocol = req.protocol;
-    const host = req.get("host");
-    let fileUrl = null;
-
-    if (req.file) {
-      fileUrl = `${protocol}://${host}/uploads/${userId}/${req.file.filename}`;
-    }
+    const fileKey = req.file ? `${userId}/${req.file.filename}` : null;
 
     const result = await db.run(
       `INSERT INTO records
-        (user_id, record_title, description, date, doctor_name, hospital_name, doctype, docinfo, file_url)
+       (user_id, record_title, description, date, doctor_name, hospital_name, doctype, docinfo, file_url)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         userId,
@@ -122,7 +128,7 @@ router.post("/upload", auth, upload.single("file"), async (req, res) => {
         hospital_name || "",
         doctype || null,
         docinfo || "{}",
-        fileUrl,
+        fileKey,
       ]
     );
 
@@ -138,7 +144,7 @@ router.post("/upload", auth, upload.single("file"), async (req, res) => {
         hospital_name,
         doctype,
         docinfo: JSON.parse(docinfo || "{}"),
-        file_url: fileUrl,
+        file_url: fileKey ? `${req.protocol}://${req.get("host")}/uploads/${fileKey}` : null,
       },
     });
   } catch (err) {
@@ -147,34 +153,26 @@ router.post("/upload", auth, upload.single("file"), async (req, res) => {
   }
 });
 
-// --- PUT /:id (file optional) ---
+// --- PUT /records/:id ---
 router.put("/:id", auth, upload.single("file"), async (req, res) => {
   const recordId = req.params.id;
   const userId = req.user.id;
   const { remove_file } = req.body;
 
   try {
-    const existing = await db.get(`SELECT * FROM records WHERE id = ?`, [recordId]);
+    const existing = await db.get(`SELECT * FROM records WHERE id=?`, [recordId]);
     if (!existing) return res.status(404).json({ ok: false, message: "Not found" });
     if (existing.user_id !== userId && req.user.role !== "admin")
       return res.status(403).json({ ok: false, message: "Forbidden" });
 
-    // delete old file if needed
     if (remove_file === "true" || req.file) {
-      const oldFile = existing.file_url
-        ? path.join(baseUploadDir, String(userId), path.basename(existing.file_url))
-        : null;
-      if (oldFile && fs.existsSync(oldFile)) fs.unlinkSync(oldFile);
+      const oldPath = existing.file_url ? fileKeyToPath(existing.file_url) : null;
+      if (oldPath && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
     }
 
-    let newFileUrl = existing.file_url;
-    if (req.file) {
-      const protocol = req.protocol;
-      const host = req.get("host");
-      newFileUrl = `${protocol}://${host}/uploads/${userId}/${req.file.filename}`;
-    } else if (remove_file === "true") {
-      newFileUrl = null;
-    }
+    let newKey = existing.file_url;
+    if (req.file) newKey = `${userId}/${req.file.filename}`;
+    else if (remove_file === "true") newKey = null;
 
     const updated = {
       record_title: req.body.record_title ?? existing.record_title,
@@ -184,7 +182,7 @@ router.put("/:id", auth, upload.single("file"), async (req, res) => {
       hospital_name: req.body.hospital_name ?? existing.hospital_name,
       doctype: req.body.doctype ?? existing.doctype,
       docinfo: req.body.docinfo ?? existing.docinfo,
-      file_url: newFileUrl,
+      file_url: newKey,
     };
 
     await db.run(
@@ -204,14 +202,23 @@ router.put("/:id", auth, upload.single("file"), async (req, res) => {
       ]
     );
 
-    res.json({ ok: true, record: { id: recordId, ...updated } });
+    res.json({
+      ok: true,
+      record: {
+        id: Number(recordId),
+        ...updated,
+        file_url: updated.file_url
+          ? `${req.protocol}://${req.get("host")}/uploads/${updated.file_url}`
+          : null,
+      },
+    });
   } catch (err) {
     console.error("PUT /records/:id error:", err);
     res.status(500).json({ ok: false, message: "Update failed" });
   }
 });
 
-// --- DELETE /:id ---
+// --- DELETE /records/:id ---
 router.delete("/:id", auth, async (req, res) => {
   try {
     const record = await db.get(`SELECT * FROM records WHERE id=?`, [req.params.id]);
@@ -219,10 +226,10 @@ router.delete("/:id", auth, async (req, res) => {
     if (record.user_id !== req.user.id && req.user.role !== "admin")
       return res.status(403).json({ ok: false, message: "Forbidden" });
 
-    const filePath = record.file_url
-      ? path.join(baseUploadDir, String(record.user_id), path.basename(record.file_url))
-      : null;
-    if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    if (record.file_url) {
+      const filePath = fileKeyToPath(record.file_url);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
 
     await db.run(`DELETE FROM records WHERE id=?`, [req.params.id]);
     res.json({ ok: true, deletedId: Number(req.params.id) });
@@ -232,7 +239,7 @@ router.delete("/:id", auth, async (req, res) => {
   }
 });
 
-// --- DOWNLOAD route ---
+// --- GET /records/download/:id (auth required) ---
 router.get("/download/:id", auth, async (req, res) => {
   try {
     const record = await db.get(`SELECT * FROM records WHERE id=?`, [req.params.id]);
@@ -240,10 +247,7 @@ router.get("/download/:id", auth, async (req, res) => {
     if (record.user_id !== req.user.id && req.user.role !== "admin")
       return res.status(403).json({ ok: false, message: "Forbidden" });
 
-    const filePath = record.file_url
-      ? path.join(baseUploadDir, String(record.user_id), path.basename(record.file_url))
-      : null;
-
+    const filePath = fileKeyToPath(record.file_url);
     if (!filePath || !fs.existsSync(filePath))
       return res.status(404).json({ ok: false, message: "File not found" });
 
