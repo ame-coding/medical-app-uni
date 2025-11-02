@@ -1,4 +1,3 @@
-// app/addItems/viewRecord.tsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -7,12 +6,10 @@ import {
   ActivityIndicator,
   Alert,
   TouchableOpacity,
+  Image,
   Linking,
-  StyleSheet,
-  SafeAreaView,
-  Platform,
-  StatusBar,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../../hooks/useTheme";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { authFetch } from "../../lib/auth";
@@ -21,7 +18,7 @@ import BASE_URL from "../../lib/apiconfig";
 type Params = { id?: string };
 
 export default function ViewRecord() {
-  const { styles, sizes, colors } = useTheme();
+  const { styles, colors } = useTheme();
   const params = useLocalSearchParams() as Params;
   const id = Number(params.id);
   const router = useRouter();
@@ -30,233 +27,169 @@ export default function ViewRecord() {
   const [record, setRecord] = useState<any>(null);
 
   useEffect(() => {
-    if (!id) {
-      Alert.alert("Error", "Missing record id");
-      router.back();
-      return;
-    }
+    if (!id) return router.back();
     fetchRecord();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const fetchRecord = async () => {
-    setLoading(true);
     try {
       const res = await authFetch(`${BASE_URL}/records/${id}`);
-      const raw = await res.text();
-      let json = null;
-      try {
-        json = raw ? JSON.parse(raw) : null;
-      } catch {
-        json = null;
-      }
-
-      if (!res.ok) {
-        Alert.alert("Error", json?.message || "Failed to load record");
-        router.back();
-        return;
-      }
-
-      setRecord(json.record);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setRecord({ ...data.record, docinfo: data.record.docinfo || {} });
     } catch (err) {
-      console.error("fetchRecord error:", err);
-      Alert.alert("Error", "Network error");
+      console.error("Fetch record error:", err);
+      Alert.alert("Error", "Failed to load record");
       router.back();
     } finally {
       setLoading(false);
     }
   };
 
-  const openFile = async (url?: string | null) => {
-    if (!url) return;
+  const handleDownload = async () => {
     try {
+      const url = `${BASE_URL}/records/download/${id}`;
       const ok = await Linking.canOpenURL(url);
-      if (!ok) {
-        Alert.alert("Cannot open link", "Invalid URL");
-        return;
-      }
+      if (!ok) return Alert.alert("Invalid URL");
       await Linking.openURL(url);
     } catch (err) {
-      console.error("openFile error:", err);
-      Alert.alert("Error", "Failed to open file URL");
+      console.error("Download error:", err);
+      Alert.alert("Error", "Could not open file");
     }
   };
 
-  if (loading) {
+  if (loading)
     return (
       <View
-        style={[
-          styles.screen,
-          { justifyContent: "center", alignItems: "center" },
-        ]}
+        style={[styles.screen, { justifyContent: "center", alignItems: "center" }]}
       >
-        <ActivityIndicator />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
-  }
 
-  if (!record) {
+  if (!record)
     return (
       <View
-        style={[
-          styles.screen,
-          { justifyContent: "center", alignItems: "center" },
-        ]}
+        style={[styles.screen, { justifyContent: "center", alignItems: "center" }]}
       >
-        <Text style={styles.text}>Record not found</Text>
+        <Text style={{ color: colors.text }}>No record found</Text>
       </View>
     );
-  }
 
-  // Header padding for Android status bar fallback
-  const androidTop =
-    Platform.OS === "android" ? StatusBar.currentHeight || 0 : 0;
+  const isImage = record.file_url?.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+  const isPDF = record.file_url?.match(/\.pdf$/i);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* Header with safe padding */}
-      <View
-        style={[
-          headerStyles.header,
-          {
-            paddingTop: androidTop > 0 ? androidTop / 2 : 0,
-            backgroundColor: colors.background,
-            borderBottomColor: colors.border,
-            shadowColor: "#000",
-            shadowOpacity: 0.05,
-            shadowRadius: 6,
-            elevation: 2,
-          },
-        ]}
-      >
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={headerStyles.headerBtn}
-        >
-          <Text
-            style={[styles.text, { color: colors.text, fontWeight: "600" }]}
-          >
-            Back
-          </Text>
-        </TouchableOpacity>
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        <Text style={styles.heading}>{record.record_title}</Text>
 
-        <Text style={[styles.text, headerStyles.headerTitle]}>Record</Text>
+        <Text style={[styles.text, { marginTop: 6 }]}>Date: {record.date || "-"}</Text>
+        <Text style={styles.text}>Doctor: {record.doctor_name || "Unknown"}</Text>
+        <Text style={styles.text}>Hospital: {record.hospital_name || "Unknown"}</Text>
+        <Text style={styles.text}>Type: {record.doctype || "-"}</Text>
+
+        {record.file_url && !record.file_missing ? (
+          <View style={{ marginTop: 16 }}>
+            {isImage && (
+              <Image
+                source={{ uri: record.file_url }}
+                style={{ width: "100%", aspectRatio: 1, borderRadius: 8 }}
+                resizeMode="cover"
+              />
+            )}
+            {isPDF && (
+              <Text
+                style={{
+                  marginTop: 10,
+                  fontSize: 16,
+                  color: colors.text,
+                }}
+              >
+                📄 {record.file_url.split("/").pop()}
+              </Text>
+            )}
+            <TouchableOpacity
+              onPress={handleDownload}
+              style={{
+                backgroundColor: colors.primary,
+                padding: 10,
+                borderRadius: 8,
+                marginTop: 12,
+              }}
+            >
+              <Text
+                style={{
+                  color: "#fff",
+                  textAlign: "center",
+                  fontWeight: "700",
+                }}
+              >
+                Download File
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <Text style={{ color: "red", marginTop: 12 }}>
+            {record.file_missing ? "⚠️ File not found" : "No file attached"}
+          </Text>
+        )}
+
+        <View style={{ marginTop: 16 }}>
+          <Text style={[styles.text, { fontWeight: "700" }]}>Details:</Text>
+          {Object.keys(record.docinfo || {}).length === 0 ? (
+            <Text style={[styles.text, { marginTop: 6 }]}>No additional details.</Text>
+          ) : (
+            Object.entries(record.docinfo).map(([k, v]: any) => (
+              <View key={k} style={{ marginTop: 6 }}>
+                <Text style={[styles.text, { fontWeight: "600" }]}>{k}</Text>
+                <Text style={styles.text}>{String(v)}</Text>
+              </View>
+            ))
+          )}
+        </View>
 
         <TouchableOpacity
           onPress={() =>
             router.push({
-              pathname: "/addItems/editRecord",
+              pathname: "../editItems/editRecord",
               params: { id: record.id },
             })
           }
-          style={headerStyles.headerBtn}
+          style={{
+            marginTop: 24,
+            backgroundColor: colors.primary,
+            padding: 12,
+            borderRadius: 8,
+          }}
         >
           <Text
-            style={[styles.text, { color: colors.primary, fontWeight: "700" }]}
+            style={{ color: "#fff", textAlign: "center", fontWeight: "700" }}
           >
-            Edit
+            Edit Record
           </Text>
         </TouchableOpacity>
-      </View>
 
-      {/* Center content: use ScrollView so long descriptions still scroll */}
-      <ScrollView
-        contentContainerStyle={[viewStyles.scrollContainer, { padding: 16 }]}
-      >
-        <View
-          style={[
-            styles.card,
-            viewStyles.card,
-            { width: "100%", maxWidth: 820 },
-          ]}
+        <TouchableOpacity
+          onPress={() => router.replace("/(tabs)/records")}
+          style={{
+            marginTop: 16,
+            padding: 10,
+            borderRadius: 8,
+            backgroundColor: colors.surface,
+          }}
         >
-          <Text style={[styles.heading, { marginBottom: 6 }]}>
-            {record.record_title}
-          </Text>
-          <Text style={styles.mutedText}>Date: {record.date}</Text>
-          <Text style={styles.mutedText}>
-            Doctor: {record.doctor_name || "-"}
-          </Text>
-          <Text style={styles.mutedText}>
-            Hospital: {record.hospital_name || "-"}
-          </Text>
-
-          <Text style={{ marginTop: 10, color: colors.text }}>
-            {record.description || "No additional notes."}
-          </Text>
-
-          {record.file_url ? (
-            <TouchableOpacity
-              onPress={() => openFile(record.file_url)}
-              style={{ marginTop: 12 }}
-            >
-              <Text style={{ color: colors.primary, fontWeight: "700" }}>
-                Open attached file
-              </Text>
-            </TouchableOpacity>
-          ) : null}
-
-          <Text style={[styles.mutedText, { marginTop: 12 }]}>
-            Created: {record.created_at}
-          </Text>
-
-          <View
+          <Text
             style={{
-              marginTop: 16,
-              flexDirection: "row",
-              justifyContent: "space-between",
+              textAlign: "center",
+              color: colors.text,
+              fontWeight: "600",
             }}
           >
-            <TouchableOpacity onPress={() => router.replace("/(tabs)/records")}>
-              <Text style={{ color: colors.muted }}>Back to list</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() =>
-                router.push({
-                  pathname: "/addItems/editRecord",
-                  params: { id: record.id },
-                })
-              }
-            >
-              <Text style={{ color: colors.primary, fontWeight: "700" }}>
-                Edit
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+            ← Back to Records
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-const headerStyles = StyleSheet.create({
-  header: {
-    width: "100%",
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    height: 56,
-    justifyContent: "space-between",
-    borderBottomWidth: 1,
-  },
-  headerBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-});
-
-const viewStyles = StyleSheet.create({
-  scrollContainer: {
-    flexGrow: 1,
-    justifyContent: "center", // vertical center
-    alignItems: "center", // horizontal center
-  },
-  card: {
-    padding: 16,
-  },
-});

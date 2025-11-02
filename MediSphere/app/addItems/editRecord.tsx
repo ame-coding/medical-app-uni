@@ -1,243 +1,290 @@
-// app/editItems/editRecord.tsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
   TextInput,
-  Alert,
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Platform,
-  StyleSheet,
+  Image,
+  Alert,
 } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { useTheme } from "../../hooks/useTheme";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import * as DocumentPicker from "expo-document-picker";
 import BASE_URL from "../../lib/apiconfig";
 import { authFetch } from "../../lib/auth";
 
-type Params = { id?: string };
-
 export default function EditRecord() {
-  const { styles, colors, sizes } = useTheme();
+  const { styles, colors } = useTheme();
   const router = useRouter();
-  const params = useLocalSearchParams() as Params;
-  const id = Number(params.id);
-
-  const [loading, setLoading] = useState(false);
+  const { id } = useLocalSearchParams();
+  const [loading, setLoading] = useState(true);
+  const [record, setRecord] = useState<any>(null);
+  const [newFile, setNewFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
+  const [removeFile, setRemoveFile] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const [recordTitle, setRecordTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [date, setDate] = useState<Date>(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [doctorName, setDoctorName] = useState("");
-  const [hospitalName, setHospitalName] = useState("");
-  const [fileUrl, setFileUrl] = useState("");
+  const suggestedFields: Record<string, string[]> = useMemo(
+    () => ({
+      "Blood Test": ["Blood Pressure", "Blood Count"],
+      Pharmacy: ["Medicines"],
+      "X-Ray": ["Body Part", "Findings"],
+      Ultrasound: ["Region", "Observations"],
+    }),
+    []
+  );
 
   useEffect(() => {
-    if (!id) {
-      Alert.alert("Error", "Missing record id");
-      router.back();
-      return;
-    }
+    if (!id) return router.back();
     fetchRecord();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const fetchRecord = async () => {
-    setLoading(true);
     try {
       const res = await authFetch(`${BASE_URL}/records/${id}`);
-      const raw = await res.text();
-      let json = null;
-      try {
-        json = raw ? JSON.parse(raw) : null;
-      } catch {
-        json = null;
-      }
-
-      if (!res.ok) {
-        Alert.alert("Error", json?.message || "Failed to load record");
-        router.back();
-        return;
-      }
-
-      const r = json.record;
-      setRecordTitle(r.record_title ?? "");
-      setDescription(r.description ?? "");
-      // parse date (assume stored YYYY-MM-DD)
-      setDate(r.date ? new Date(r.date + "T00:00:00") : new Date());
-      setDoctorName(r.doctor_name ?? "");
-      setHospitalName(r.hospital_name ?? "");
-      setFileUrl(r.file_url ?? "");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setRecord({
+        ...data.record,
+        docinfo: data.record.docinfo || {},
+      });
     } catch (err) {
-      console.error("fetchRecord error:", err);
-      Alert.alert("Error", "Network error");
+      console.error("Fetch record error:", err);
+      Alert.alert("Error", "Failed to load record");
       router.back();
     } finally {
       setLoading(false);
     }
   };
 
-  const onChangeDate = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(false);
-    if (event.type === "set" && selectedDate) {
-      setDate(selectedDate);
+  const pickNewFile = async () => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        type: ["image/*", "application/pdf"],
+      });
+      if (res.assets?.length) setNewFile(res.assets[0]);
+    } catch (err) {
+      console.error("File picker error:", err);
+      Alert.alert("Error", "Could not select file");
     }
   };
 
+  const addCustomField = () => {
+    const key = `Field ${Object.keys(record.docinfo || {}).length + 1}`;
+    setRecord((r: any) => ({
+      ...r,
+      docinfo: { ...(r.docinfo || {}), [key]: "" },
+    }));
+  };
+
   const handleSave = async () => {
-    if (!recordTitle.trim()) return Alert.alert("Error", "Title is required");
+    if (!record?.record_title) return Alert.alert("Title required");
     setSaving(true);
     try {
-      const payload: any = {
-        record_title: recordTitle.trim(),
-        description: description || null,
-        // store only YYYY-MM-DD to match your schema
-        date: date.toISOString().slice(0, 10),
-        doctor_name: doctorName || null,
-        hospital_name: hospitalName || null,
-        file_url: fileUrl || null,
-      };
+      const form = new FormData();
+      form.append("record_title", record.record_title);
+      form.append("description", record.description || "");
+      form.append("date", record.date || "");
+      form.append("doctor_name", record.doctor_name || "");
+      form.append("hospital_name", record.hospital_name || "");
+      form.append("doctype", record.doctype || "");
+      form.append("docinfo", JSON.stringify(record.docinfo || {}));
+      form.append("remove_file", removeFile ? "true" : "false");
+
+      if (newFile) {
+        form.append("file", {
+          uri: newFile.uri,
+          name: newFile.name || "upload.jpg",
+          type: newFile.mimeType || "application/octet-stream",
+        } as any);
+      }
 
       const res = await authFetch(`${BASE_URL}/records/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: form,
       });
-
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        Alert.alert("Error", json?.message || "Failed to update record");
-        return;
-      }
-
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
       Alert.alert("Success", "Record updated");
-      router.back();
+      router.replace("/(tabs)/records");
     } catch (err) {
-      console.error("save record error:", err);
-      Alert.alert("Error", "Network error");
+      console.error("Save error:", err);
+      Alert.alert("Error", "Failed to save record");
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) {
+  if (loading)
     return (
-      <View
-        style={[
-          styles.screen,
-          { justifyContent: "center", alignItems: "center" },
-        ]}
-      >
+      <View style={[styles.screen, { justifyContent: "center", alignItems: "center" }]}>
         <ActivityIndicator />
       </View>
     );
-  }
+
+  const fullUrl = record?.file_url;
+  const isImage = fullUrl?.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+  const isPDF = fullUrl?.match(/\.pdf$/i);
+  const fields = record?.doctype && suggestedFields[record.doctype] ? suggestedFields[record.doctype] : [];
 
   return (
-    <ScrollView contentContainerStyle={{ padding: sizes.gap }}>
-      <Text style={[styles.heading, { marginBottom: sizes.gap }]}>
-        Edit Record
-      </Text>
+    <ScrollView contentContainerStyle={{ padding: 16 }}>
+      <Text style={styles.heading}>Edit Record</Text>
 
       <TextInput
+        style={styles.input}
         placeholder="Title"
-        placeholderTextColor={colors.muted}
-        style={[
-          styles.input,
-          { backgroundColor: colors.surface, color: colors.text },
-        ]}
-        value={recordTitle}
-        onChangeText={setRecordTitle}
+        value={record.record_title}
+        onChangeText={(v) => setRecord({ ...record, record_title: v })}
       />
 
       <TextInput
+        style={[styles.input, { minHeight: 100 }]}
         placeholder="Description"
-        placeholderTextColor={colors.muted}
-        style={[
-          styles.input,
-          { backgroundColor: colors.surface, color: colors.text },
-        ]}
-        value={description}
-        onChangeText={setDescription}
         multiline
+        value={record.description}
+        onChangeText={(v) => setRecord({ ...record, description: v })}
       />
 
-      {/* Date */}
-      {Platform.OS === "web" ? (
-        <input
-          type="date"
-          value={date.toISOString().slice(0, 10)}
-          onChange={(e) => setDate(new Date(e.target.value))}
+      <TextInput
+        style={styles.input}
+        placeholder="Date"
+        value={record.date}
+        onChangeText={(v) => setRecord({ ...record, date: v })}
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Doctor Name"
+        value={record.doctor_name}
+        onChangeText={(v) => setRecord({ ...record, doctor_name: v })}
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Hospital Name"
+        value={record.hospital_name}
+        onChangeText={(v) => setRecord({ ...record, hospital_name: v })}
+      />
+
+      <Text style={[styles.text, { marginTop: 12 }]}>Document Type</Text>
+      {["Blood Test", "Pharmacy", "X-Ray", "Ultrasound"].map((t) => (
+        <TouchableOpacity
+          key={t}
+          onPress={() => setRecord({ ...record, doctype: t, docinfo: {} })}
           style={{
-            width: "100%",
-            padding: 12,
-            borderRadius: 10,
-            border: `1px solid ${colors.border}`,
-            color: colors.text,
-            backgroundColor: colors.surface,
+            padding: 10,
+            borderWidth: 1,
+            borderColor: record.doctype === t ? "#007AFF" : "#ccc",
+            borderRadius: 8,
+            marginVertical: 5,
           }}
-        />
-      ) : (
-        <>
+        >
+          <Text>{t}</Text>
+        </TouchableOpacity>
+      ))}
+
+      {!!record.doctype && (
+        <View style={{ marginTop: 10 }}>
+          <Text style={[styles.text, { fontWeight: "700" }]}>{record.doctype} Details</Text>
+
+          {fields.map((label) => (
+            <View key={label}>
+              <Text style={styles.text}>{label}</Text>
+              <TextInput
+                style={styles.input}
+                value={record.docinfo?.[label] || ""}
+                onChangeText={(val) =>
+                  setRecord((r: any) => ({
+                    ...r,
+                    docinfo: { ...(r.docinfo || {}), [label]: val },
+                  }))
+                }
+              />
+            </View>
+          ))}
+
+          {Object.keys(record.docinfo || {})
+            .filter((k) => !fields.includes(k))
+            .map((k) => (
+              <View key={k}>
+                <Text style={styles.text}>{k}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={record.docinfo[k]}
+                  onChangeText={(v) =>
+                    setRecord((r: any) => ({
+                      ...r,
+                      docinfo: { ...(r.docinfo || {}), [k]: v },
+                    }))
+                  }
+                />
+              </View>
+            ))}
+
           <TouchableOpacity
-            onPress={() => setShowDatePicker(true)}
-            style={[styles.card, { padding: 12, marginVertical: 5 }]}
+            onPress={addCustomField}
+            style={{
+              marginTop: 8,
+              backgroundColor: "#eee",
+              padding: 10,
+              borderRadius: 8,
+              alignItems: "center",
+            }}
           >
-            <Text>Date: {date.toLocaleDateString()}</Text>
+            <Text>+ Add Custom Field</Text>
           </TouchableOpacity>
-          {showDatePicker && (
-            <DateTimePicker
-              value={date}
-              mode="date"
-              display="default"
-              onChange={onChangeDate}
-            />
-          )}
-        </>
+        </View>
       )}
 
-      <TextInput
-        placeholder="Doctor Name"
-        placeholderTextColor={colors.muted}
-        style={[
-          styles.input,
-          { backgroundColor: colors.surface, color: colors.text },
-        ]}
-        value={doctorName}
-        onChangeText={setDoctorName}
-      />
-
-      <TextInput
-        placeholder="Hospital Name"
-        placeholderTextColor={colors.muted}
-        style={[
-          styles.input,
-          { backgroundColor: colors.surface, color: colors.text },
-        ]}
-        value={hospitalName}
-        onChangeText={setHospitalName}
-      />
-
-      <TextInput
-        placeholder="File URL"
-        placeholderTextColor={colors.muted}
-        style={[
-          styles.input,
-          { backgroundColor: colors.surface, color: colors.text },
-        ]}
-        value={fileUrl}
-        onChangeText={setFileUrl}
-      />
+      {record?.file_url && !record.file_missing && !removeFile ? (
+        <View style={{ marginTop: 10 }}>
+          {isImage && (
+            <Image
+              source={{ uri: fullUrl }}
+              style={{ width: "100%", aspectRatio: 1, borderRadius: 8 }}
+            />
+          )}
+          {isPDF && <Text>📄 {fullUrl.split("/").pop()}</Text>}
+          <TouchableOpacity
+            onPress={() => setRemoveFile(true)}
+            style={{
+              backgroundColor: "red",
+              padding: 8,
+              borderRadius: 8,
+              marginTop: 8,
+            }}
+          >
+            <Text style={{ color: "#fff", textAlign: "center" }}>Remove File</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <TouchableOpacity
+          onPress={pickNewFile}
+          style={{
+            backgroundColor: "#eee",
+            borderRadius: 8,
+            padding: 12,
+            alignItems: "center",
+            marginTop: 10,
+          }}
+        >
+          <Text>{newFile ? newFile.name : "Upload New File (optional)"}</Text>
+        </TouchableOpacity>
+      )}
 
       <TouchableOpacity
         onPress={handleSave}
-        style={[styles.button, { marginTop: 16 }]}
+        disabled={saving}
+        style={{
+          marginTop: 20,
+          backgroundColor: colors.primary,
+          padding: 12,
+          borderRadius: 8,
+        }}
       >
-        <Text style={styles.buttonText}>
+        <Text style={{ color: "#fff", textAlign: "center", fontWeight: "700" }}>
           {saving ? "Saving..." : "Save Changes"}
         </Text>
       </TouchableOpacity>

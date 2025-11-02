@@ -1,6 +1,15 @@
-// app/(auth)/register.tsx
 import React, { useState } from "react";
-import { View, Text, TextInput, ScrollView, Alert, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
+  TouchableOpacity,
+  Platform,
+} from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker"; // ✅ added
 import { useRouter } from "expo-router";
 import { useTheme } from "../../hooks/useTheme";
 import BASE_URL from "../../lib/apiconfig";
@@ -8,7 +17,7 @@ import AppButton from "@/components/appButton";
 import { KeyboardTypeOptions } from "react-native";
 
 export default function RegisterScreen() {
-  const { styles, sizes } = useTheme();
+  const { styles, sizes, colors } = useTheme();
   const router = useRouter();
 
   const [loading, setLoading] = useState(false);
@@ -19,8 +28,10 @@ export default function RegisterScreen() {
     last_name: "",
     gender: "",
     phone: "",
-    dob: "", // ✅ renamed
+    dob: "", // date string
   });
+
+  const [showDatePicker, setShowDatePicker] = useState(false); // ✅ added
 
   const handleChange = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -65,7 +76,6 @@ export default function RegisterScreen() {
 
   return (
     <ScrollView contentContainerStyle={{ padding: sizes.gap }} style={[styles.screen, { padding: 5 }]}>
-
       {[
         { key: "username", label: "Username" },
         { key: "password", label: "Password", secure: true },
@@ -73,12 +83,9 @@ export default function RegisterScreen() {
         { key: "last_name", label: "Last Name" },
         { key: "gender", label: "Gender" },
         { key: "phone", label: "Phone Number", keyboardType: "phone-pad" },
-        { key: "dob", label: "Date of Birth (YYYY-MM-DD)" }, // ✅ renamed + hint
       ].map((f) => (
         <View key={f.key} style={{ marginTop: sizes.gap }}>
-          <Text style={styles.text}>
-            {f.label}
-          </Text>
+          <Text style={styles.text}>{f.label}</Text>
           <TextInput
             style={styles.input}
             placeholder={f.label}
@@ -89,6 +96,57 @@ export default function RegisterScreen() {
           />
         </View>
       ))}
+
+      {/* ✅ Date of Birth Picker */}
+      <View style={{ marginTop: sizes.gap }}>
+        <Text style={styles.text}>Date of Birth</Text>
+
+        {Platform.OS === "web" ? (
+          <input
+            type="date"
+            value={form.dob}
+            onChange={(e) => handleChange("dob", e.target.value)}
+            style={{
+              width: "100%",
+              padding: 12,
+              borderRadius: 10,
+              border: `1px solid ${colors.border}`,
+              backgroundColor: colors.surface,
+              color: colors.text,
+            }}
+          />
+        ) : (
+          <>
+            <TouchableOpacity
+              onPress={() => setShowDatePicker(true)}
+              style={[
+                styles.input,
+                {
+                  justifyContent: "center",
+                  backgroundColor: colors.surface,
+                },
+              ]}
+            >
+              <Text style={{ color: colors.text }}>
+                {form.dob || "Select Date of Birth"}
+              </Text>
+            </TouchableOpacity>
+
+            {showDatePicker && (
+              <DateTimePicker
+                mode="date"
+                display="default"
+                value={form.dob ? new Date(form.dob) : new Date()}
+                onChange={(_, selectedDate) => {
+                  setShowDatePicker(false);
+                  if (selectedDate)
+                    handleChange("dob", selectedDate.toISOString().slice(0, 10));
+                }}
+              />
+            )}
+          </>
+        )}
+      </View>
 
       <View style={{ marginTop: sizes.gap * 1.5 }}>
         <AppButton title="Register" onPress={handleSubmit} />

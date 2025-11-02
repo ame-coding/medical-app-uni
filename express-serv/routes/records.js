@@ -1,188 +1,260 @@
-// express-serv/routes/records.js
 import express from "express";
-import db from "../dbfiles/db.js"; // shared sqlite wrapper
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import db from "../dbfiles/db.js";
 import { auth } from "../middleware/auth.js";
 
 const router = express.Router();
 
-// GET / -> list user's records
+const baseUploadDir = path.join(process.cwd(), "userfiles", "uploads");
+if (!fs.existsSync(baseUploadDir)) fs.mkdirSync(baseUploadDir, { recursive: true });
+
+// --- Configure Multer ---
+const storage = multer.diskStorage({
+  destination: function (req, _file, cb) {
+    const userId = req.user?.id ?? "unknown";
+    const userDir = path.join(baseUploadDir, String(userId));
+    if (!fs.existsSync(userDir)) fs.mkdirSync(userDir, { recursive: true });
+    cb(null, userDir);
+  },
+  filename: function (_req, file, cb) {
+    const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, `${unique}${path.extname(file.originalname)}`);
+  },
+});
+const upload = multer({ storage });
+
+function fileKeyToPath(key) {
+  return key ? path.join(baseUploadDir, key) : null;
+}
+
+// --- GET /records (all for user) ---
 router.get("/", auth, async (req, res) => {
   try {
-    const userId = req.user.id;
     const rows = await db.all(
-      `SELECT id, user_id, record_title, description, date, doctor_name, hospital_name, file_url, created_at
-       FROM records WHERE user_id = ? ORDER BY date DESC, created_at DESC`,
-      [userId]
+      `SELECT id, user_id, record_title, description, date, doctor_name, hospital_name,
+              doctype, docinfo, file_url, created_at
+       FROM records
+       WHERE user_id = ?
+       ORDER BY date DESC, created_at DESC`,
+      [req.user.id]
     );
-    res.json({ ok: true, records: rows || [] });
+
+    const host = `${req.protocol}://${req.get("host")}`;
+
+    const formatted = rows.map((r) => {
+      let parsedInfo = {};
+      try {
+        parsedInfo = r.docinfo ? JSON.parse(r.docinfo) : {};
+      } catch {}
+      const absUrl = r.file_url ? `${host}/uploads/${r.file_url}` : null;
+      const missing = r.file_url ? !fs.existsSync(fileKeyToPath(r.file_url)) : false;
+
+      return {
+        ...r,
+        docinfo: parsedInfo,
+        file_url: absUrl, // send absolute URL only in API response
+        file_missing: missing,
+      };
+    });
+
+    res.json({ ok: true, records: formatted });
   } catch (err) {
-    console.error("GET /records error:", err.message);
-    return res.status(500).json({ ok: false, message: "DB error" });
+    console.error("GET /records error:", err);
+    res.status(500).json({ ok: false, message: "Database error" });
   }
 });
 
-// GET /:id -> fetch single record
+// --- GET /records/:id ---
 router.get("/:id", auth, async (req, res) => {
   try {
-    const userId = req.user.id;
-    const isAdmin = req.user.role === "admin";
-    const recordId = Number(req.params.id);
-
-    const row = await db.get(
-      `SELECT id, user_id, record_title, description, date, doctor_name, hospital_name, file_url, created_at
-       FROM records WHERE id = ?`,
-      [recordId]
-    );
-
-    if (!row) return res.status(404).json({ ok: false, message: "Not found" });
-    if (!isAdmin && row.user_id !== userId)
+    const record = await db.get(`SELECT * FROM records WHERE id=?`, [req.params.id]);
+    if (!record) return res.status(404).json({ ok: false, message: "Not found" });
+    if (record.user_id !== req.user.id && req.user.role !== "admin")
       return res.status(403).json({ ok: false, message: "Forbidden" });
 
-    res.json({ ok: true, record: row });
+    const host = `${req.protocol}://${req.get("host")}`;
+    try {
+      record.docinfo = record.docinfo ? JSON.parse(record.docinfo) : {};
+    } catch {
+      record.docinfo = {};
+    }
+
+    record.file_missing = record.file_url
+      ? !fs.existsSync(fileKeyToPath(record.file_url))
+      : false;
+
+    record.file_url = record.file_url
+      ? `${host}/uploads/${record.file_url}`
+      : null;
+
+    res.json({ ok: true, record });
   } catch (err) {
-    console.error(`GET /records/${req.params.id} error:`, err.message);
-    return res.status(500).json({ ok: false, message: "DB error" });
+    console.error("GET /records/:id error:", err);
+    res.status(500).json({ ok: false, message: "Database error" });
   }
 });
 
-// POST / -> create
-router.post("/", auth, async (req, res) => {
+// --- POST /records/upload ---
+router.post("/upload", auth, upload.single("file"), async (req, res) => {
   const userId = req.user.id;
   const {
     record_title,
     description,
     date,
-    doctor_name = null,
-    hospital_name = null,
-    file_url = null,
-  } = req.body || {};
+    doctor_name,
+    hospital_name,
+    doctype,
+    docinfo,
+  } = req.body;
 
-  if (!record_title || !date) {
-    return res
-      .status(400)
-      .json({ ok: false, message: "record_title and date are required" });
-  }
+  if (!record_title || !date)
+    return res.status(400).json({ ok: false, message: "Title and date required" });
 
   try {
-    const sql =
-      "INSERT INTO records (user_id, record_title, description, date, doctor_name, hospital_name, file_url) VALUES (?, ?, ?, ?, ?, ?, ?)";
-    const result = await db.run(sql, [
-      userId,
-      record_title,
-      description || "",
-      date,
-      doctor_name,
-      hospital_name,
-      file_url,
-    ]);
+    const fileKey = req.file ? `${userId}/${req.file.filename}` : null;
 
-    const created = {
-      id: result.lastID,
-      user_id: userId,
-      record_title,
-      description,
-      date,
-      doctor_name,
-      hospital_name,
-      file_url,
-    };
-    res.status(201).json({ ok: true, record: created });
-  } catch (err) {
-    console.error("POST /records error:", err.message);
-    return res.status(500).json({ ok: false, message: "DB insert error" });
-  }
-});
-
-// PUT /:id -> update record (owner or admin)
-router.put("/:id", auth, async (req, res) => {
-  const userId = req.user.id;
-  const isAdmin = req.user.role === "admin";
-  const recordId = Number(req.params.id);
-
-  try {
-    // check existence & ownership
-    const existing = await db.get("SELECT user_id FROM records WHERE id = ?", [
-      recordId,
-    ]);
-    if (!existing)
-      return res.status(404).json({ ok: false, message: "Not found" });
-    if (!isAdmin && existing.user_id !== userId)
-      return res.status(403).json({ ok: false, message: "Forbidden" });
-
-    // allowed fields to update
-    const allowed = [
-      "record_title",
-      "description",
-      "date",
-      "doctor_name",
-      "hospital_name",
-      "file_url",
-    ];
-    const sets = [];
-    const params = [];
-
-    for (const key of allowed) {
-      if (req.body[key] !== undefined) {
-        sets.push(`${key} = ?`);
-        params.push(req.body[key]);
-      }
-    }
-
-    if (sets.length === 0)
-      return res
-        .status(400)
-        .json({ ok: false, message: "No fields to update" });
-
-    // update timestamp too
-    sets.push("created_at = created_at"); // keep created_at
-    // add updated_at if table has it; we'll attempt to set it if column exists (best-effort)
-    // But not required — you can add updated_at column later.
-
-    const sql = `UPDATE records SET ${sets.join(", ")} WHERE id = ?`;
-    params.push(recordId);
-
-    console.log("PUT /records/:id SQL:", sql, "params:", params);
-    const result = await db.run(sql, params);
-
-    if (!result.changes)
-      return res.status(404).json({ ok: false, message: "Record not found" });
-
-    const updated = await db.get(
-      `SELECT id, user_id, record_title, description, date, doctor_name, hospital_name, file_url, created_at
-       FROM records WHERE id = ?`,
-      [recordId]
+    const result = await db.run(
+      `INSERT INTO records
+       (user_id, record_title, description, date, doctor_name, hospital_name, doctype, docinfo, file_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        userId,
+        record_title,
+        description || "",
+        date,
+        doctor_name || "",
+        hospital_name || "",
+        doctype || null,
+        docinfo || "{}",
+        fileKey,
+      ]
     );
 
-    res.json({ ok: true, record: updated });
+    res.status(201).json({
+      ok: true,
+      record: {
+        id: result.lastID,
+        user_id: userId,
+        record_title,
+        description,
+        date,
+        doctor_name,
+        hospital_name,
+        doctype,
+        docinfo: JSON.parse(docinfo || "{}"),
+        file_url: fileKey ? `${req.protocol}://${req.get("host")}/uploads/${fileKey}` : null,
+      },
+    });
   } catch (err) {
-    console.error(`PUT /records/${recordId} error:`, err.message || err);
-    return res.status(500).json({ ok: false, message: "DB update error" });
+    console.error("POST /records/upload error:", err);
+    res.status(500).json({ ok: false, message: "Insert failed" });
   }
 });
 
-// DELETE /:id -> delete (owner or admin)
-router.delete("/:id", auth, async (req, res) => {
-  const userId = req.user.id;
-  const isAdmin = req.user.role === "admin";
+// --- PUT /records/:id ---
+router.put("/:id", auth, upload.single("file"), async (req, res) => {
   const recordId = req.params.id;
+  const userId = req.user.id;
+  const { remove_file } = req.body;
 
   try {
-    const row = await db.get("SELECT user_id FROM records WHERE id = ?", [
-      recordId,
-    ]);
-
-    if (!row) return res.status(404).json({ ok: false, message: "Not found" });
-    if (!isAdmin && row.user_id !== userId)
+    const existing = await db.get(`SELECT * FROM records WHERE id=?`, [recordId]);
+    if (!existing) return res.status(404).json({ ok: false, message: "Not found" });
+    if (existing.user_id !== userId && req.user.role !== "admin")
       return res.status(403).json({ ok: false, message: "Forbidden" });
 
-    const result = await db.run("DELETE FROM records WHERE id = ?", [recordId]);
-    if (result.changes === 0)
-      return res.status(404).json({ ok: false, message: "Record not found" });
+    if (remove_file === "true" || req.file) {
+      const oldPath = existing.file_url ? fileKeyToPath(existing.file_url) : null;
+      if (oldPath && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    }
 
-    res.json({ ok: true, deletedId: Number(recordId) });
+    let newKey = existing.file_url;
+    if (req.file) newKey = `${userId}/${req.file.filename}`;
+    else if (remove_file === "true") newKey = null;
+
+    const updated = {
+      record_title: req.body.record_title ?? existing.record_title,
+      description: req.body.description ?? existing.description,
+      date: req.body.date ?? existing.date,
+      doctor_name: req.body.doctor_name ?? existing.doctor_name,
+      hospital_name: req.body.hospital_name ?? existing.hospital_name,
+      doctype: req.body.doctype ?? existing.doctype,
+      docinfo: req.body.docinfo ?? existing.docinfo,
+      file_url: newKey,
+    };
+
+    await db.run(
+      `UPDATE records
+       SET record_title=?, description=?, date=?, doctor_name=?, hospital_name=?, doctype=?, docinfo=?, file_url=?
+       WHERE id=?`,
+      [
+        updated.record_title,
+        updated.description,
+        updated.date,
+        updated.doctor_name,
+        updated.hospital_name,
+        updated.doctype,
+        updated.docinfo,
+        updated.file_url,
+        recordId,
+      ]
+    );
+
+    res.json({
+      ok: true,
+      record: {
+        id: Number(recordId),
+        ...updated,
+        file_url: updated.file_url
+          ? `${req.protocol}://${req.get("host")}/uploads/${updated.file_url}`
+          : null,
+      },
+    });
   } catch (err) {
-    console.error(`DELETE /records/${recordId} error:`, err.message);
-    return res.status(500).json({ ok: false, message: "DB delete error" });
+    console.error("PUT /records/:id error:", err);
+    res.status(500).json({ ok: false, message: "Update failed" });
+  }
+});
+
+// --- DELETE /records/:id ---
+router.delete("/:id", auth, async (req, res) => {
+  try {
+    const record = await db.get(`SELECT * FROM records WHERE id=?`, [req.params.id]);
+    if (!record) return res.status(404).json({ ok: false, message: "Not found" });
+    if (record.user_id !== req.user.id && req.user.role !== "admin")
+      return res.status(403).json({ ok: false, message: "Forbidden" });
+
+    if (record.file_url) {
+      const filePath = fileKeyToPath(record.file_url);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
+
+    await db.run(`DELETE FROM records WHERE id=?`, [req.params.id]);
+    res.json({ ok: true, deletedId: Number(req.params.id) });
+  } catch (err) {
+    console.error("DELETE /records/:id error:", err);
+    res.status(500).json({ ok: false, message: "Delete failed" });
+  }
+});
+
+// --- GET /records/download/:id (auth required) ---
+router.get("/download/:id", auth, async (req, res) => {
+  try {
+    const record = await db.get(`SELECT * FROM records WHERE id=?`, [req.params.id]);
+    if (!record) return res.status(404).json({ ok: false, message: "Not found" });
+    if (record.user_id !== req.user.id && req.user.role !== "admin")
+      return res.status(403).json({ ok: false, message: "Forbidden" });
+
+    const filePath = fileKeyToPath(record.file_url);
+    if (!filePath || !fs.existsSync(filePath))
+      return res.status(404).json({ ok: false, message: "File not found" });
+
+    res.download(filePath, path.basename(filePath));
+  } catch (err) {
+    console.error("GET /records/download/:id error:", err);
+    res.status(500).json({ ok: false, message: "Download failed" });
   }
 });
 
