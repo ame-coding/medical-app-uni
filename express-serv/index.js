@@ -29,7 +29,7 @@ app.use((req, _res, next) => {
 });
 // serve uploaded files statically
 const uploadsDir = path.join(process.cwd(), "userfiles", "uploads");
-app.use("/uploads", express.static(uploadsDir));
+app.use("/api/uploads", express.static(uploadsDir));
 
 // mount routers
 app.use("/api/register", registerroute);
