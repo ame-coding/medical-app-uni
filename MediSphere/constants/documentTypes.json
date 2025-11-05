@@ -1,0 +1,7 @@
+{
+  "Blood Test": ["Blood Pressure", "Blood Count", "Hemoglobin", "Platelets"],
+  "Pharmacy": ["Medicine Name", "Dosage", "Duration"],
+  "X-Ray": ["Body Part", "Findings"],
+  "Ultrasound": ["Region", "Observations"],
+  "MRI": ["Region", "Findings", "Contrast Used"]
+}

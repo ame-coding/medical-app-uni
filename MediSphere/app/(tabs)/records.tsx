@@ -1,247 +1,247 @@
-import React, { useCallback, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
-  FlatList,
-  ActivityIndicator,
   TouchableOpacity,
+  ActivityIndicator,
+  FlatList,
   Image,
-  Modal,
-  ScrollView,
-  Linking,
+  Alert,
 } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
 import { useRouter } from "expo-router";
-import useRecords from "../../hooks/useRecords";
-import { useAuth } from "../../providers/AuthProvider";
-import { useFocusEffect } from "@react-navigation/native";
+import { authFetch, getToken } from "../../lib/auth";
+import { downloadWithAuth } from "../../lib/downloadHelper";
 import BASE_URL from "../../lib/apiconfig";
 
 export default function RecordsScreen() {
-  const { styles, sizes, colors } = useTheme();
-  const { user, loading } = useAuth();
+  const { styles, colors } = useTheme();
   const router = useRouter();
-  const { records, loading: recordsLoading, loadRecords, deleteRecord } = useRecords();
-  const [selectedDetails, setSelectedDetails] = useState<any>(null);
+  const [records, setRecords] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!user) return;
-      loadRecords();
-    }, [user, loadRecords])
-  );
+  // ✅ Fetch all records directly using authFetch
+  const fetchRecords = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await authFetch(`${BASE_URL}/records`);
+      const data = await res.json();
 
-  const handleDownload = (id: number) => {
-    const url = `${BASE_URL}/records/download/${id}`;
-    Linking.openURL(url);
+      if (!res.ok) {
+        console.error("Fetch error:", data);
+        Alert.alert("Error", data.message || "Failed to load records");
+        setRecords([]);
+        return;
+      }
+
+      setRecords(Array.isArray(data.records) ? data.records : data);
+    } catch (err) {
+      console.error("Network error:", err);
+      Alert.alert("Error", "Could not fetch records. Please try again.");
+      setRecords([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRecords();
+  }, [fetchRecords]);
+
+  // ✅ Delete record
+  const handleDelete = async (id: number) => {
+    Alert.alert("Confirm Delete", "Are you sure you want to delete this record?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const res = await authFetch(`${BASE_URL}/records/${id}`, {
+              method: "DELETE",
+            });
+            if (!res.ok) {
+              const data = await res.json();
+              Alert.alert("Error", data.message || "Failed to delete");
+              return;
+            }
+            setRecords((prev) => prev.filter((r) => r.id !== id));
+          } catch (err) {
+            console.error("Delete error:", err);
+            Alert.alert("Error", "Failed to delete record");
+          }
+        },
+      },
+    ]);
   };
 
-  const renderRecord = ({ item }: any) => {
-    const isImage = item.file_url?.match(/\.(jpg|jpeg|png|gif|webp)$/i);
-    const isPDF = item.file_url?.match(/\.pdf$/i);
-    const hasDocInfo = item.docinfo && Object.keys(item.docinfo).length > 0;
+  // ✅ Download
+  const handleDownload = useCallback(async (id: number, filename: string) => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        Alert.alert("Unauthorized", "Please log in again.");
+        return;
+      }
+      await downloadWithAuth(id, filename, token, BASE_URL);
+    } catch (err) {
+      console.error("Download error:", err);
+      Alert.alert("Error", "Download failed");
+    }
+  }, []);
+
+  // ✅ Render each record item
+  const renderItem = ({ item }: any) => {
+    const isImage =
+      item.file_url &&
+      /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(item.file_url.split("/").pop() || "");
 
     return (
       <View
         style={{
-          backgroundColor: colors.background,
+          backgroundColor: colors.surface,
           borderRadius: 12,
           padding: 12,
-          marginBottom: 12,
-          elevation: 2,
+          marginBottom: 10,
         }}
       >
-        <Text style={[styles.text, { fontWeight: "700" }]}>{item.record_title}</Text>
-        <Text style={[styles.mutedText, { marginBottom: 8 }]}>{item.date}</Text>
+        <Text style={[styles.text, { fontWeight: "700", fontSize: 16 }]}>
+          {item.record_title}
+        </Text>
+        <Text style={[styles.text, { marginBottom: 4 }]}>{item.date}</Text>
 
-        {item.file_url && !item.file_missing ? (
-          <>
-            {isImage && (
-              <Image
-                source={{ uri: item.file_url }}
-                style={{
-                  width: "100%",
-                  aspectRatio: 1,
-                  borderRadius: 10,
-                  backgroundColor: "#f5f5f5",
-                }}
-                resizeMode="cover"
-              />
-            )}
-            {isPDF && (
-              <View
-                style={{
-                  backgroundColor: "#f3f3f3",
-                  padding: 10,
-                  borderRadius: 8,
-                  marginTop: 4,
-                }}
-              >
-                <Text>📄 {item.file_url.split("/").pop()}</Text>
-              </View>
-            )}
-          </>
-        ) : (
-          <Text
-            style={{
-              color: "red",
-              marginTop: 6,
-              fontStyle: "italic",
-            }}
-          >
-            {item.file_missing ? "File not found" : "No file attached"}
-          </Text>
-        )}
+        {isImage && (
+  <Image
+    source={{ uri: item.file_url }}
+    style={{
+      width: "100%",
+      height: 150,
+      borderRadius: 8,
+      marginBottom: 8,
+    }}
+    resizeMode="cover"
+  />
+)}
 
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 10 }}>
+
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
           {item.file_url && !item.file_missing && (
             <TouchableOpacity
-              onPress={() => handleDownload(item.id)}
+              onPress={() => handleDownload(item.id, item.file_url.split("/").pop())}
               style={{
                 backgroundColor: colors.primary,
-                paddingVertical: 6,
-                paddingHorizontal: 12,
+                padding: 6,
                 borderRadius: 8,
               }}
             >
-              <Text style={{ color: "#fff", fontWeight: "600" }}>Download</Text>
-            </TouchableOpacity>
-          )}
-
-          {hasDocInfo && (
-            <TouchableOpacity
-              onPress={() => setSelectedDetails(item.docinfo)}
-              style={{
-                backgroundColor: colors.secondary,
-                paddingVertical: 6,
-                paddingHorizontal: 12,
-                borderRadius: 8,
-              }}
-            >
-              <Text style={{ color: "#fff", fontWeight: "600" }}>View Details</Text>
+              <Text style={{ color: "#fff" }}>Download</Text>
             </TouchableOpacity>
           )}
 
           <TouchableOpacity
-            onPress={() => router.push({ pathname: "../addItems/viewRecord", params: { id: item.id } })}
+            onPress={() =>
+              router.push({ pathname: "../addItems/viewRecord", params: { id: item.id } })
+            }
             style={{
               backgroundColor: "#444",
-              paddingVertical: 6,
-              paddingHorizontal: 12,
+              padding: 6,
               borderRadius: 8,
             }}
           >
-            <Text style={{ color: "#fff", fontWeight: "600" }}>Full Record</Text>
+            <Text style={{ color: "#fff" }}>View</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => router.push({ pathname: "../addItems/editRecord", params: { id: item.id } })}
+            onPress={() =>
+              router.push({ pathname: "../addItems/editRecord", params: { id: item.id } })
+            }
             style={{
               backgroundColor: "#6c5ce7",
-              paddingVertical: 6,
-              paddingHorizontal: 12,
+              padding: 6,
               borderRadius: 8,
             }}
           >
-            <Text style={{ color: "#fff", fontWeight: "600" }}>Edit</Text>
+            <Text style={{ color: "#fff" }}>Edit</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => deleteRecord(item.id)}
+            onPress={() => handleDelete(item.id)}
             style={{
               backgroundColor: "#d9534f",
-              paddingVertical: 6,
-              paddingHorizontal: 12,
+              padding: 6,
               borderRadius: 8,
             }}
           >
-            <Text style={{ color: "#fff", fontWeight: "600" }}>Delete</Text>
+            <Text style={{ color: "#fff" }}>Delete</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   };
 
+  // ✅ Loader
   if (loading)
     return (
       <View style={[styles.screen, { justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
 
+  // ✅ Empty state
+  if (!records.length)
+    return (
+      <View
+        style={[styles.screen, { justifyContent: "center", alignItems: "center", gap: 12 }]}
+      >
+        <Text style={[styles.text, { opacity: 0.7 }]}>
+          No records found. Add a new one!
+        </Text>
+        <TouchableOpacity
+          onPress={() => router.push("../addItems/newRecord")}
+          style={{
+            backgroundColor: colors.primary,
+            paddingVertical: 10,
+            paddingHorizontal: 16,
+            borderRadius: 8,
+          }}
+        >
+          <Text style={{ color: "#fff", fontWeight: "600" }}>+ New Record</Text>
+        </TouchableOpacity>
+      </View>
+    );
+
+  // ✅ Main list
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { paddingHorizontal: 12 }]}>
       <View
         style={{
           flexDirection: "row",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: sizes.gap,
+          marginBottom: 12,
         }}
       >
-        <Text style={styles.heading}>Medical Records</Text>
-        <TouchableOpacity onPress={() => router.push("../addItems/newRecord")}>
-          <Text style={{ color: colors.primary, fontWeight: "700" }}>+ Add</Text>
+        <Text style={[styles.heading, { marginBottom: 0 }]}>Medical Records</Text>
+        <TouchableOpacity
+          onPress={() => router.push("../addItems/newRecord")}
+          style={{
+            backgroundColor: colors.primary,
+            paddingVertical: 8,
+            paddingHorizontal: 14,
+            borderRadius: 8,
+          }}
+        >
+          <Text style={{ color: "#fff", fontWeight: "600" }}>+ New</Text>
         </TouchableOpacity>
       </View>
 
-      {recordsLoading && <ActivityIndicator style={{ marginVertical: sizes.gap }} />}
-
-      {records.length === 0 && !recordsLoading ? (
-        <Text style={styles.mutedText}>No records yet.</Text>
-      ) : (
-        <FlatList data={records} keyExtractor={(r) => r.id.toString()} renderItem={renderRecord} />
-      )}
-
-      <Modal
-        visible={!!selectedDetails}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setSelectedDetails(null)}
-      >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            justifyContent: "center",
-            alignItems: "center",
-            padding: 20,
-          }}
-        >
-          <View
-            style={{
-              backgroundColor: "#fff",
-              borderRadius: 12,
-              width: "100%",
-              maxHeight: "80%",
-              padding: 16,
-            }}
-          >
-            <Text style={{ fontWeight: "700", fontSize: 18, marginBottom: 10 }}>Record Details</Text>
-            <ScrollView>
-              {Object.entries(selectedDetails || {}).map(([key, value]) => (
-                <View key={key} style={{ marginBottom: 8 }}>
-                  <Text style={{ fontWeight: "600" }}>{key}</Text>
-                  <Text>{String(value)}</Text>
-                </View>
-              ))}
-            </ScrollView>
-
-            <TouchableOpacity
-              onPress={() => setSelectedDetails(null)}
-              style={{
-                backgroundColor: colors.primary,
-                paddingVertical: 8,
-                borderRadius: 8,
-                alignItems: "center",
-                marginTop: 10,
-              }}
-            >
-              <Text style={{ color: "#fff", fontWeight: "600" }}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      <FlatList
+        data={records}
+        renderItem={renderItem}
+        keyExtractor={(r) => r.id.toString()}
+        showsVerticalScrollIndicator={false}
+      />
     </View>
   );
 }
