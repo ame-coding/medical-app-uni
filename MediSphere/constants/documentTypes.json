@@ -1,7 +1,15 @@
 {
-  "Blood Test": ["Blood Pressure", "Blood Count", "Hemoglobin", "Platelets"],
+  "Blood Test": [
+    "Blood Pressure",
+    "Blood Count",
+    "Hemoglobin",
+    "Platelets",
+    "Glucose (mg/dL)",
+    "Cholesterol (mg/dL)"
+  ],
   "Pharmacy": ["Medicine Name", "Dosage", "Duration"],
   "X-Ray": ["Body Part", "Findings"],
   "Ultrasound": ["Region", "Observations"],
-  "MRI": ["Region", "Findings", "Contrast Used"]
+  "MRI": ["Region", "Findings", "Contrast Used"],
+  "ECG": ["Heart Rate", "Rhythm", "QT Interval"]
 }
