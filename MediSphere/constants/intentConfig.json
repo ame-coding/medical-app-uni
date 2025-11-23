@@ -1,0 +1,20 @@
+{
+  "intents": {
+    "show_recommendations": [
+      "recommend",
+      "suggest",
+      "what should i do",
+      "any advice"
+    ],
+    "show_recent_tests": [
+      "recent tests",
+      "recent labs",
+      "recent test",
+      "my labs",
+      "last test"
+    ],
+    "help": ["help", "what can you do", "how can you help"],
+    "greeting": ["hi", "hello", "hey"]
+  },
+  "defaultSuggestions": ["Show recommendations", "Show recent tests", "Help"]
+}

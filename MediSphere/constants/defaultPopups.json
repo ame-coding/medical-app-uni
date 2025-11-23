@@ -1,0 +1,20 @@
+[
+  {
+    "title": "Hydration reminder",
+    "message": "Take a sip of water — staying hydrated helps your tests be accurate.",
+    "cta": "Open Chat",
+    "followUp": "Would you like recommendations based on your latest blood test?"
+  },
+  {
+    "title": "Stretch Break",
+    "message": "Stand up and stretch for 2 minutes — small breaks matter.",
+    "cta": "Open Chat",
+    "followUp": "I can also check your recent tests if you'd like."
+  },
+  {
+    "title": "Short Walk",
+    "message": "A 5 minute walk helps circulation. Try it now!",
+    "cta": "Open Chat",
+    "followUp": "Want me to check any reports?"
+  }
+]
