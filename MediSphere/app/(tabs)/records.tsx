@@ -1,3 +1,4 @@
+// app/(tabs)/records.tsx
 import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
@@ -19,9 +20,8 @@ export default function RecordsScreen() {
   const router = useRouter();
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
 
-  // ✅ Fetch all records directly using authFetch
+  // Fetch all records directly using authFetch
   const fetchRecords = useCallback(async () => {
     try {
       setLoading(true);
@@ -49,34 +49,38 @@ export default function RecordsScreen() {
     fetchRecords();
   }, [fetchRecords]);
 
-  // ✅ Delete record
+  // Delete record
   const handleDelete = async (id: number) => {
-    Alert.alert("Confirm Delete", "Are you sure you want to delete this record?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            const res = await authFetch(`${BASE_URL}/records/${id}`, {
-              method: "DELETE",
-            });
-            if (!res.ok) {
-              const data = await res.json();
-              Alert.alert("Error", data.message || "Failed to delete");
-              return;
+    Alert.alert(
+      "Confirm Delete",
+      "Are you sure you want to delete this record?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const res = await authFetch(`${BASE_URL}/records/${id}`, {
+                method: "DELETE",
+              });
+              if (!res.ok) {
+                const data = await res.json();
+                Alert.alert("Error", data.message || "Failed to delete");
+                return;
+              }
+              setRecords((prev) => prev.filter((r) => r.id !== id));
+            } catch (err) {
+              console.error("Delete error:", err);
+              Alert.alert("Error", "Failed to delete record");
             }
-            setRecords((prev) => prev.filter((r) => r.id !== id));
-          } catch (err) {
-            console.error("Delete error:", err);
-            Alert.alert("Error", "Failed to delete record");
-          }
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
-  // ✅ Download
+  // Download
   const handleDownload = useCallback(async (id: number, filename: string) => {
     try {
       const token = await getToken();
@@ -91,14 +95,25 @@ export default function RecordsScreen() {
     }
   }, []);
 
-  // ✅ Render each record item
+  // Render each record item
   const renderItem = ({ item }: any) => {
     const isImage =
       item.file_url &&
-      /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(item.file_url.split("/").pop() || "");
+      /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(
+        item.file_url.split("/").pop() || ""
+      );
+
+    // navigate helper (used both on image press and card press)
+    const openView = () =>
+      router.push({
+        pathname: "../addItems/viewRecord",
+        params: { id: item.id },
+      } as any);
 
     return (
-      <View
+      <TouchableOpacity
+        activeOpacity={0.95}
+        onPress={openView}
         style={{
           backgroundColor: colors.surface,
           borderRadius: 12,
@@ -112,23 +127,36 @@ export default function RecordsScreen() {
         <Text style={[styles.text, { marginBottom: 4 }]}>{item.date}</Text>
 
         {isImage && (
-  <Image
-    source={{ uri: item.file_url }}
-    style={{
-      width: "100%",
-      height: 150,
-      borderRadius: 8,
-      marginBottom: 8,
-    }}
-    resizeMode="cover"
-  />
-)}
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={openView}
+            style={{ marginBottom: 8, borderRadius: 8, overflow: "hidden" }}
+          >
+            <Image
+              source={{ uri: item.file_url }}
+              style={{
+                width: "100%",
+                height: 150, // small preview region
+                borderRadius: 8,
+              }}
+              resizeMode="cover"
+            />
+          </TouchableOpacity>
+        )}
 
-
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: 8,
+            marginTop: 8,
+          }}
+        >
           {item.file_url && !item.file_missing && (
             <TouchableOpacity
-              onPress={() => handleDownload(item.id, item.file_url.split("/").pop())}
+              onPress={() =>
+                handleDownload(item.id, item.file_url.split("/").pop())
+              }
               style={{
                 backgroundColor: colors.primary,
                 padding: 6,
@@ -140,9 +168,7 @@ export default function RecordsScreen() {
           )}
 
           <TouchableOpacity
-            onPress={() =>
-              router.push({ pathname: "../addItems/viewRecord", params: { id: item.id } })
-            }
+            onPress={openView}
             style={{
               backgroundColor: "#444",
               padding: 6,
@@ -154,7 +180,10 @@ export default function RecordsScreen() {
 
           <TouchableOpacity
             onPress={() =>
-              router.push({ pathname: "../addItems/editRecord", params: { id: item.id } })
+              router.push({
+                pathname: "../addItems/editRecord",
+                params: { id: item.id },
+              } as any)
             }
             style={{
               backgroundColor: "#6c5ce7",
@@ -176,23 +205,31 @@ export default function RecordsScreen() {
             <Text style={{ color: "#fff" }}>Delete</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
-  // ✅ Loader
+  // Loader
   if (loading)
     return (
-      <View style={[styles.screen, { justifyContent: "center", alignItems: "center" }]}>
+      <View
+        style={[
+          styles.screen,
+          { justifyContent: "center", alignItems: "center" },
+        ]}
+      >
         <ActivityIndicator color={colors.primary} />
       </View>
     );
 
-  // ✅ Empty state
+  // Empty state
   if (!records.length)
     return (
       <View
-        style={[styles.screen, { justifyContent: "center", alignItems: "center", gap: 12 }]}
+        style={[
+          styles.screen,
+          { justifyContent: "center", alignItems: "center", gap: 12 },
+        ]}
       >
         <Text style={[styles.text, { opacity: 0.7 }]}>
           No records found. Add a new one!
@@ -211,7 +248,7 @@ export default function RecordsScreen() {
       </View>
     );
 
-  // ✅ Main list
+  // Main list
   return (
     <View style={[styles.screen, { paddingHorizontal: 12 }]}>
       <View
@@ -222,7 +259,9 @@ export default function RecordsScreen() {
           marginBottom: 12,
         }}
       >
-        <Text style={[styles.heading, { marginBottom: 0 }]}>Medical Records</Text>
+        <Text style={[styles.heading, { marginBottom: 0 }]}>
+          Medical Records
+        </Text>
         <TouchableOpacity
           onPress={() => router.push("../addItems/newRecord")}
           style={{

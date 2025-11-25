@@ -1,3 +1,4 @@
+// app/addItems/viewRecord.tsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -7,6 +8,10 @@ import {
   ScrollView,
   Alert,
   Image,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../../hooks/useTheme";
@@ -22,15 +27,20 @@ export default function ViewRecord() {
   const [record, setRecord] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // full-screen modal state
+  const [showImageModal, setShowImageModal] = useState(false);
+
   useEffect(() => {
     fetchRecord();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const fetchRecord = async () => {
     try {
+      setLoading(true);
       const res = await authFetch(`${BASE_URL}/records/${id}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
+      if (!res.ok) throw new Error(data.message || "Failed to load");
       setRecord(data.record);
     } catch (e) {
       console.error(e);
@@ -58,27 +68,41 @@ export default function ViewRecord() {
 
   if (loading)
     return (
-      <View style={[styles.screen, { justifyContent: "center", alignItems: "center" }]}>
+      <View
+        style={[
+          styles.screen,
+          { justifyContent: "center", alignItems: "center" },
+        ]}
+      >
         <ActivityIndicator color={colors.primary} />
       </View>
     );
 
   if (!record)
     return (
-      <View style={[styles.screen, { justifyContent: "center", alignItems: "center" }]}>
+      <View
+        style={[
+          styles.screen,
+          { justifyContent: "center", alignItems: "center" },
+        ]}
+      >
         <Text>No record found</Text>
       </View>
     );
 
   const isImage =
     record.file_url &&
-    /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(record.file_url.split("/").pop() || "");
+    /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(
+      record.file_url.split("/").pop() || ""
+    );
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         <Text style={styles.heading}>{record.record_title}</Text>
-        <Text style={[styles.text, { marginBottom: 4 }]}>Date: {record.date}</Text>
+        <Text style={[styles.text, { marginBottom: 4 }]}>
+          Date: {record.date}
+        </Text>
         <Text style={styles.text}>Doctor: {record.doctor_name || "—"}</Text>
         <Text style={styles.text}>Hospital: {record.hospital_name || "—"}</Text>
         <Text style={styles.text}>Type: {record.doctype || "—"}</Text>
@@ -92,27 +116,37 @@ export default function ViewRecord() {
               </Text>
             ))
           ) : (
-            <Text style={[styles.text, { opacity: 0.6 }]}>No additional details</Text>
+            <Text style={[styles.text, { opacity: 0.6 }]}>
+              No additional details
+            </Text>
           )}
         </View>
 
-        {/* ✅ Image preview if file is an image */}
+        {/* Image preview (small) — tap to open full-screen */}
         {isImage && !record.file_missing && (
-          <Image
-            source={{ uri: record.file_url }}
+          <TouchableOpacity
+            onPress={() => setShowImageModal(true)}
+            activeOpacity={0.9}
             style={{
-              width: "100%",
-              height: 200,
-              borderRadius: 10,
               marginTop: 20,
-              marginBottom: 10,
-              backgroundColor: colors.surface,
+              borderRadius: 10,
+              overflow: "hidden",
+              alignSelf: "stretch",
             }}
-            resizeMode="cover"
-          />
+          >
+            <Image
+              source={{ uri: record.file_url }}
+              style={{
+                width: "100%",
+                height: 200, // small preview portion
+                backgroundColor: colors.surface,
+              }}
+              resizeMode="cover"
+            />
+          </TouchableOpacity>
         )}
 
-        {/* ✅ Download button if file exists */}
+        {/* Download button if file exists */}
         {record.file_url && !record.file_missing && (
           <TouchableOpacity
             onPress={handleDownload}
@@ -123,14 +157,19 @@ export default function ViewRecord() {
               borderRadius: 8,
             }}
           >
-            <Text style={{ color: "#fff", textAlign: "center" }}>Download File</Text>
+            <Text style={{ color: "#fff", textAlign: "center" }}>
+              Download File
+            </Text>
           </TouchableOpacity>
         )}
 
-        {/* ✅ Edit button */}
+        {/* Edit button */}
         <TouchableOpacity
           onPress={() =>
-            router.push({ pathname: "../addItems/editRecord", params: { id: record.id } })
+            router.push({
+              pathname: "../addItems/editRecord",
+              params: { id: record.id },
+            } as any)
           }
           style={{
             marginTop: 16,
@@ -139,10 +178,12 @@ export default function ViewRecord() {
             borderRadius: 8,
           }}
         >
-          <Text style={{ color: "#fff", textAlign: "center" }}>Edit Record</Text>
+          <Text style={{ color: "#fff", textAlign: "center" }}>
+            Edit Record
+          </Text>
         </TouchableOpacity>
 
-        {/* ✅ Back button */}
+        {/* Back button */}
         <TouchableOpacity
           onPress={() => router.push("/(tabs)/records")}
           style={{
@@ -158,6 +199,80 @@ export default function ViewRecord() {
           <Text style={{ color: colors.text }}>← Back to Records</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Full-screen Image Modal */}
+      <Modal
+        visible={showImageModal}
+        animationType="fade"
+        onRequestClose={() => setShowImageModal(false)}
+        presentationStyle={
+          Platform.OS === "ios" ? "overFullScreen" : "fullScreen"
+        }
+      >
+        <View style={[modalStyles.container, { backgroundColor: "black" }]}>
+          <Pressable
+            onPress={() => setShowImageModal(false)}
+            style={modalStyles.closeArea}
+          >
+            <Text style={modalStyles.closeText}>✕</Text>
+          </Pressable>
+
+          <Image
+            source={{ uri: record.file_url }}
+            style={modalStyles.fullImage}
+            resizeMode="contain"
+          />
+
+          <View style={modalStyles.downloadRow}>
+            <TouchableOpacity
+              onPress={handleDownload}
+              style={[
+                modalStyles.downloadBtn,
+                { backgroundColor: colors.primary },
+              ]}
+            >
+              <Text style={{ color: "#fff" }}>Download</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
+
+const modalStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  fullImage: {
+    width: "100%",
+    height: "100%",
+  },
+  closeArea: {
+    position: "absolute",
+    top: 40,
+    right: 20,
+    zIndex: 20,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    borderRadius: 20,
+    padding: 6,
+  },
+  closeText: {
+    color: "#fff",
+    fontSize: 18,
+  },
+  downloadRow: {
+    position: "absolute",
+    bottom: 40,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  downloadBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 8,
+  },
+});

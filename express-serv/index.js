@@ -4,13 +4,13 @@ import cors from "cors";
 import helmet from "helmet";
 import dotenv from "dotenv";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import loginRouter from "./routes/loginapi.js";
 import recordsRouter from "./routes/records.js";
-import registerroute from "./routes/registerapi.js";
+import registerRouter from "./routes/registerapi.js";
 import remindersRouter from "./routes/reminders.js";
 import profileRouter from "./routes/profile.js";
+import recommendationsRouter from "./routes/recommendations.js";
 
 import db from "./dbfiles/db.js";
 
@@ -19,72 +19,64 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+// Middlewares
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
+// Log all requests
 app.use((req, _res, next) => {
   console.log(`${req.method} ${req.url}`);
   next();
 });
-// serve uploaded files statically
+
+// Static hosting for profile photos & uploads
 const uploadsDir = path.join(process.cwd(), "userfiles", "uploads");
 app.use("/api/uploads", express.static(uploadsDir));
 
-// mount routers
-app.use("/api/register", registerroute);
+// Health checks
+app.get("/__health", (req, res) => {
+  res.json({ ok: true, ip: req.ip, time: new Date().toISOString() });
+});
+app.get("/health", (_req, res) => res.json({ ok: true }));
+
+// Routers
+app.use("/api/register", registerRouter);
 app.use("/api/auth", loginRouter);
 app.use("/api/records", recordsRouter);
 app.use("/api/reminders", remindersRouter);
-app.use("/api/profile", profileRouter); // <--- ROUTE MOUNTED
+app.use("/api/profile", profileRouter);
+app.use("/api/recommendations", recommendationsRouter);
 
-
-// health check
-app.get("/health", (_req, res) => res.json({ ok: true }));
-
-// --- ADD THIS NEW FUNCTION ---
-/**
- * This function finds all one-time (non-repeating) reminders
- * that are in the past and marks them as inactive (is_active = 0).
- */
+// Cleanup expired reminders
 async function cleanupExpiredReminders() {
-  console.log("Running automatic cleanup of expired reminders...");
+  console.log("Running expired reminder cleanup...");
   try {
     const result = await db.run(
       `
       DELETE FROM reminders
-      WHERE (repeat_interval IS NULL OR repeat_interval = 'none')
-        AND datetime(date_time) < datetime('now')
+      WHERE (repeat_interval IS NULL OR repeat_interval='none')
+      AND datetime(date_time) < datetime('now')
     `
     );
-
-    if (result.changes > 0) {
-      console.log(`Deleted ${result.changes} expired reminders.`);
-    }
+    console.log(`Deleted ${result.changes} expired reminders.`);
   } catch (err) {
-    console.error("Error during reminder cleanup:", err);
+    console.error("Reminder cleanup error:", err);
   }
 }
 
-// --- END NEW FUNCTION ---
-
-// centralized error handler
+// Error handler
 app.use((err, _req, res, _next) => {
-  console.error("Server error handler:", err);
+  console.error("Global error:", err);
   res
     .status(err?.status || 500)
     .json({ ok: false, message: err?.msg || "Server error" });
 });
 
+// Start server
 app.listen(PORT, "0.0.0.0", async () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running at http://localhost:${PORT}`);
 
-  // --- ADD THIS BLOCK ---
-  // Run cleanup on server start
   await cleanupExpiredReminders();
-
-  // And run it automatically every 10 minutes
-  const TEN_MINUTES_MS = 10 * 60 * 1000;
-  setInterval(cleanupExpiredReminders, TEN_MINUTES_MS);
-  // --- END BLOCK ---
+  setInterval(cleanupExpiredReminders, 10 * 60 * 1000);
 });
