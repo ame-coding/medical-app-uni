@@ -1,10 +1,18 @@
 // MediSphere/app/_layout.tsx
 import React from "react";
 import { Stack } from "expo-router";
-import { AuthProvider } from "../providers/AuthProvider";
+import { AuthProvider, useAuth } from "../providers/AuthProvider";
 import { ThemeProvider } from "../hooks/useTheme";
 import { StatusBar } from "react-native";
-import KittyFloating from "../components/kitty/kittyFloating";
+import KittyFloating from "../components/kitty/kittyFloating"; // <- match filename case
+
+// Small wrapper that uses the Auth context (must be inside AuthProvider)
+function AuthKitty() {
+  const { user } = useAuth();
+  // Only render KittyFloating for authenticated regular users
+  if (!user || user.role?.toLowerCase() !== "user") return null;
+  return <KittyFloating />;
+}
 
 export default function RootLayout() {
   return (
@@ -17,8 +25,8 @@ export default function RootLayout() {
           <Stack.Screen name="(admin_tabs)" options={{ headerShown: false }} />
         </Stack>
 
-        {/* Floating kitty always present (renders above screens) */}
-        <KittyFloating />
+        {/* Kitty only mounts after auth; wrapper calls useAuth safely */}
+        <AuthKitty />
       </AuthProvider>
     </ThemeProvider>
   );

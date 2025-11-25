@@ -27,11 +27,9 @@ import TIP_POOL from "../../constants/quickTips";
  * - only visible to normal users (user.role === 'user')
  */
 export default function KittyFloating() {
+  // Always call hooks unconditionally at the top
   const { styles, colors } = useTheme();
   const { user } = useAuth();
-
-  // Only show for authenticated regular users
-  if (!user || user.role?.toLowerCase() !== "user") return null;
 
   const [open, setOpen] = useState(false);
 
@@ -50,6 +48,9 @@ export default function KittyFloating() {
   const pulse = useRef(new Animated.Value(1)).current;
   const bubbleOpacity = useRef(new Animated.Value(0)).current;
   const bubbleTranslate = useRef(new Animated.Value(6)).current;
+
+  // Guard after hooks: only render UI for authenticated regular users
+  if (!user || user.role?.toLowerCase() !== "user") return null;
 
   // Build a shuffled queue (no repeats until emptied)
   function refillQueue() {

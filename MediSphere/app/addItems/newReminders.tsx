@@ -1,5 +1,5 @@
 // app/addItems/newReminders.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,9 +8,10 @@ import {
   ScrollView,
   TouchableOpacity,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTheme } from "../../hooks/useTheme";
 import BASE_URL from "../../lib/apiconfig";
 import { authFetch } from "../../lib/auth";
@@ -22,16 +23,65 @@ import {
 export default function NewReminders() {
   const { colors, styles, sizes } = useTheme();
   const router = useRouter();
+  const params = useLocalSearchParams() as Record<string, any>;
+  const { prefill, date: dateParam } = params || {};
 
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
-  const [date, setDate] = useState(new Date());
+  const [date, setDate] = useState<Date>(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [repeat, setRepeat] = useState<"none" | "daily" | "weekly" | "monthly">(
     "none"
   );
   const [loading, setLoading] = useState(false);
+  const [prefillLoading, setPrefillLoading] = useState<boolean>(false);
+
+  // If a date param is provided, set it (try decodeURIComponent)
+  useEffect(() => {
+    if (dateParam) {
+      try {
+        const decoded = decodeURIComponent(String(dateParam));
+        const d = new Date(decoded);
+        if (!Number.isNaN(d.getTime())) setDate(d);
+      } catch (e) {
+        console.warn("Failed to parse date param:", e);
+      }
+    }
+  }, [dateParam]);
+
+  // If prefill id provided, fetch record and prefill fields
+  useEffect(() => {
+    if (!prefill) return;
+    (async () => {
+      setPrefillLoading(true);
+      try {
+        const res = await authFetch(
+          `${BASE_URL}/records/${encodeURIComponent(prefill)}`
+        );
+        if (!res.ok) {
+          console.warn("Prefill record fetch failed", res.status);
+          setPrefillLoading(false);
+          return;
+        }
+        const json = await res.json();
+        const record = json.record;
+        if (record) {
+          setTitle(record.record_title || "");
+          setDesc(record.description || "");
+          // if record.date exists and no explicit date param was given, use record.date
+          if (record.date && !dateParam) {
+            const d = new Date(record.date);
+            if (!Number.isNaN(d.getTime())) setDate(d);
+          }
+        }
+      } catch (err) {
+        console.warn("Error fetching prefill record:", err);
+      } finally {
+        setPrefillLoading(false);
+      }
+    })();
+  }, [prefill, dateParam]);
 
   const onChangeDate = (event: any, selectedDate?: Date) => {
     setShowDatePicker(false);
@@ -86,7 +136,7 @@ export default function NewReminders() {
         // 2. Get permissions (required for local notifications)
         await ensurePermissionsAndChannel();
       } catch (err: any) {
-        console.warn("Notifications setup failed:", err.message);
+        console.warn("Notifications setup failed:", err?.message || err);
         // Don't block, just warn.
       }
 
@@ -113,6 +163,19 @@ export default function NewReminders() {
       setLoading(false);
     }
   };
+
+  // show loading spinner while fetching prefill
+  if (prefillLoading)
+    return (
+      <View
+        style={[
+          styles.screen,
+          { justifyContent: "center", alignItems: "center" },
+        ]}
+      >
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -196,7 +259,7 @@ export default function NewReminders() {
         <View
           style={{
             flexDirection: "row",
-            flexWrap: "wrap", // allow wrapping
+            flexWrap: "wrap",
             marginVertical: sizes.gap,
             gap: 8,
           }}
@@ -209,7 +272,7 @@ export default function NewReminders() {
                 styles.button,
                 {
                   flex: 1,
-                  minWidth: "48%", // 2 buttons per row
+                  minWidth: "48%",
                   marginBottom: 8,
                   backgroundColor:
                     repeat === opt ? colors.secondary : colors.primary,
@@ -228,6 +291,7 @@ export default function NewReminders() {
         <TouchableOpacity
           onPress={handleSubmit}
           style={[styles.button, { marginTop: 20 }]}
+          disabled={loading}
         >
           <Text style={styles.buttonText}>
             {loading ? "Saving..." : "Save Reminder"}

@@ -16,7 +16,7 @@ export default function MessageBubble({
   onQuickReply,
 }: {
   message: Msg;
-  onQuickReply?: (q: string) => void;
+  onQuickReply?: (q: string, meta?: any) => void;
 }) {
   const isBot = message.from === "bot";
   const { styles, colors } = useTheme();
@@ -51,7 +51,10 @@ export default function MessageBubble({
           {message.suggestions.map((s: string) => (
             <TouchableOpacity
               key={s}
-              onPress={() => onQuickReply?.(s)}
+              onPress={() => {
+                console.log("[MessageBubble] chip tapped:", s);
+                onQuickReply?.(s);
+              }}
               style={[
                 localStyles.chip,
                 {
