@@ -1,5 +1,5 @@
 // MediSphere/app/(tabs)/profile.tsx
-import React, { useEffect, useState, useMemo, JSX } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -24,7 +24,6 @@ import * as ImageManipulator from "expo-image-manipulator";
 import Svg, { Circle } from "react-native-svg";
 
 /* -------------------- Helpers -------------------- */
-
 function buildProfileUrl(userId: number | string) {
   const base = (BASE_URL || "").replace(/\/+$/, "");
   const hasApiSegment = /\/api(\/|$)/.test(base);
@@ -55,8 +54,7 @@ function calcAgeFromDate(d?: Date | null) {
   return age >= 0 ? age : null;
 }
 
-/* -------------------- Progress Ring Component -------------------- */
-
+/* -------------------- Progress Ring Component (display only) -------------------- */
 function ProgressRing({
   size = 100,
   strokeWidth = 6,
@@ -100,15 +98,9 @@ function ProgressRing({
 }
 
 /* -------------------- Main Component -------------------- */
-
-export default function ProfileScreen(): JSX.Element {
+export default function ProfileScreen() {
   const { styles, colors } = useTheme();
-  const {
-    user,
-    logout,
-    loading: authLoading,
-    notifyProfileUpdated,
-  } = useAuth();
+  const { user, logout, loading: authLoading } = useAuth();
 
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -136,7 +128,6 @@ export default function ProfileScreen(): JSX.Element {
     setAge(calcAgeFromDate(dobDate));
   }, [dobDate]);
 
-  /* Fetch profile */
   const fetchUserinfo = async () => {
     if (!user) return;
     setLoading(true);
@@ -183,39 +174,29 @@ export default function ProfileScreen(): JSX.Element {
     }
   };
 
-  /* Avatar pick/crop/upload */
+  // avatar pick + upload (unchanged)
   const pickImageAndUpload = async () => {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert(
-          "Permission required",
-          "Please allow access to photos to set an avatar."
-        );
+        Alert.alert("Permission required", "Allow photos to set avatar.");
         return;
       }
-
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.85,
       });
-
       if (result.canceled) return;
-
       const uri = (result as any).assets?.[0]?.uri || (result as any).uri;
       if (!uri) return;
 
       const resized = await ImageManipulator.manipulateAsync(
         uri,
         [{ resize: { width: 1024 } }],
-        {
-          compress: 0.8,
-          format: ImageManipulator.SaveFormat.JPEG,
-        }
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
       );
-
       const square = await ImageManipulator.manipulateAsync(
         resized.uri,
         [{ resize: { width: 512, height: 512 } }],
@@ -234,27 +215,17 @@ export default function ProfileScreen(): JSX.Element {
       } as any);
 
       const uploadUrl = `${BASE_URL}/profile/${user?.id}/avatar`;
-      const res = await authFetch(uploadUrl, {
-        method: "POST",
-        body: form,
-      });
-
+      const res = await authFetch(uploadUrl, { method: "POST", body: form });
       const json = await res.json().catch(() => null);
 
       if (!res.ok) {
-        console.warn("avatar upload failed", json);
         Alert.alert(
           "Upload failed",
           json?.message || "Failed to upload avatar"
         );
         return;
       }
-
       if (json?.avatar_url) setAvatarUri(json.avatar_url);
-
-      // notify others (home) that profile changed
-      notifyProfileUpdated();
-
       Alert.alert("Success", "Profile picture updated");
       fetchUserinfo();
     } catch (err) {
@@ -265,49 +236,37 @@ export default function ProfileScreen(): JSX.Element {
     }
   };
 
-  /* Remove avatar (calls DELETE route) */
   const removeAvatar = async () => {
     if (!user) return;
-    Alert.alert(
-      "Remove photo",
-      "Do you really want to remove your profile photo?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setLoading(true);
-              const url = `${BASE_URL}/profile/${user.id}/avatar`;
-              const res = await authFetch(url, { method: "DELETE" });
-              const json = await res.json().catch(() => null);
-              if (!res.ok) {
-                console.warn("Avatar removal failed", json);
-                Alert.alert(
-                  "Error",
-                  json?.message || "Failed to remove avatar"
-                );
-                return;
-              }
-              setAvatarUri(null);
-              // notify others
-              notifyProfileUpdated();
-              Alert.alert("Removed", "Your profile photo has been removed.");
-              fetchUserinfo();
-            } catch (err) {
-              console.error("removeAvatar error:", err);
-              Alert.alert("Error", "Failed to remove avatar");
-            } finally {
-              setLoading(false);
+    Alert.alert("Remove photo", "Remove your profile photo?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            setLoading(true);
+            const url = `${BASE_URL}/profile/${user.id}/avatar`;
+            const res = await authFetch(url, { method: "DELETE" });
+            const json = await res.json().catch(() => null);
+            if (!res.ok) {
+              Alert.alert("Error", json?.message || "Failed to remove avatar");
+              return;
             }
-          },
+            setAvatarUri(null);
+            Alert.alert("Removed", "Profile photo removed.");
+            fetchUserinfo();
+          } catch (err) {
+            console.error("removeAvatar error:", err);
+            Alert.alert("Error", "Failed to remove avatar");
+          } finally {
+            setLoading(false);
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
-  /* Save profile */
   const handleSave = async () => {
     if (!user) return;
     if (phone && !/^[0-9+\- ]{7,20}$/.test(phone)) {
@@ -331,9 +290,7 @@ export default function ProfileScreen(): JSX.Element {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-
       const json = await res.json().catch(() => null);
-
       if (res.status === 401) {
         await logout();
         router.replace("/(auth)/login");
@@ -343,10 +300,6 @@ export default function ProfileScreen(): JSX.Element {
         Alert.alert("Error", json?.message || "Failed to save profile");
         return;
       }
-
-      // notify others (home)
-      notifyProfileUpdated();
-
       Alert.alert("Saved", "Profile updated");
       setEditing(false);
       fetchUserinfo();
@@ -358,9 +311,8 @@ export default function ProfileScreen(): JSX.Element {
     }
   };
 
-  /* -------------------- Completion percent calculation -------------------- */
-  // Items: first_name, last_name, gender, phone, dob, avatar -> 6 items
-  const completionPercent = useMemo(() => {
+  // completion percent as 0..1 for ring, and percent int for display
+  const completionPercentRaw = useMemo(() => {
     const items = [
       firstName && firstName.trim().length > 0,
       lastName && lastName.trim().length > 0,
@@ -373,7 +325,9 @@ export default function ProfileScreen(): JSX.Element {
     return done / items.length; // 0..1
   }, [firstName, lastName, gender, phone, dob, avatarUri]);
 
-  if (authLoading) {
+  const completionPercent = Math.round(completionPercentRaw * 100);
+
+  if (authLoading)
     return (
       <View
         style={[
@@ -384,9 +338,7 @@ export default function ProfileScreen(): JSX.Element {
         <ActivityIndicator />
       </View>
     );
-  }
-
-  if (!user) {
+  if (!user)
     return (
       <View style={styles.screen}>
         <Text style={styles.text}>Not signed in</Text>
@@ -396,54 +348,34 @@ export default function ProfileScreen(): JSX.Element {
         />
       </View>
     );
-  }
 
-  /* Small typed subcomponents */
-  type FieldProps = { label: string; value?: string | null };
-  const Field: React.FC<FieldProps> = ({ label, value }) => (
+  // Small field component
+  const Field = ({
+    label,
+    value,
+  }: {
+    label: string;
+    value?: string | null;
+  }) => (
     <View style={local.row}>
       <Text style={[styles.text, local.label]}>{label}</Text>
       <Text style={[styles.text, local.value]}>{value ?? "-"}</Text>
     </View>
   );
 
-  type LabelInputProps = {
-    label: string;
-    value?: string | null;
-    onChange: (v: string) => void;
-    placeholder?: string;
-  };
-  const LabelInput: React.FC<LabelInputProps> = ({
-    label,
-    value,
-    onChange,
-    placeholder,
-  }) => (
-    <>
-      <Text style={[styles.text, local.inputLabel]}>{label}</Text>
-      <TextInput
-        style={[styles.input, { backgroundColor: colors.surface }]}
-        value={value ?? ""}
-        onChangeText={onChange}
-        placeholder={placeholder}
-      />
-    </>
-  );
-
-  /* -------------------- Render UI -------------------- */
   return (
     <ScrollView
       style={styles.screen}
       contentContainerStyle={[local.container, { paddingBottom: 40 }]}
     >
-      {/* Header card with ring + avatar */}
+      {/* header with SVG ring + avatar */}
       <View style={[styles.card, local.headerCard]}>
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <View style={local.ringWrap}>
             <ProgressRing
               size={100}
               strokeWidth={6}
-              progress={completionPercent}
+              progress={completionPercentRaw}
               backgroundColor={colors.border || "#eee"}
               progressColor={colors.primary || "#4caf50"}
             />
@@ -475,7 +407,7 @@ export default function ProfileScreen(): JSX.Element {
             </TouchableOpacity>
             <View style={local.percentLabel}>
               <Text style={{ color: colors.text, fontSize: 12 }}>
-                {Math.round(completionPercent * 100)}%
+                {completionPercent}%
               </Text>
             </View>
           </View>
@@ -483,7 +415,6 @@ export default function ProfileScreen(): JSX.Element {
           <View style={{ marginLeft: 12 }}>
             <Text style={[styles.text, local.username]}>{user.username}</Text>
             <Text style={[styles.text, local.role]}>{user.role}</Text>
-
             <View style={{ flexDirection: "row", marginTop: 8 }}>
               <TouchableOpacity
                 onPress={() => setEditing((p) => !p)}
@@ -510,7 +441,7 @@ export default function ProfileScreen(): JSX.Element {
         </View>
       </View>
 
-      {/* Personal Info */}
+      {/* Personal info */}
       <View style={[styles.card, { marginTop: 12 }]}>
         <Text style={[styles.text, local.sectionTitle]}>
           Contact & Personal
@@ -529,32 +460,39 @@ export default function ProfileScreen(): JSX.Element {
             />
 
             <View style={{ marginTop: 10 }}>
+              <AppButton title="Edit" onPress={() => setEditing(true)} />
               <AppButton title="Refresh" onPress={fetchUserinfo} />
             </View>
           </>
         ) : (
           <>
-            <LabelInput
-              label="First name"
+            <Text style={[styles.text, local.inputLabel]}>First name</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.surface }]}
               value={firstName}
-              onChange={setFirstName}
+              onChangeText={setFirstName}
             />
-            <LabelInput
-              label="Last name"
+
+            <Text style={[styles.text, local.inputLabel]}>Last name</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.surface }]}
               value={lastName}
-              onChange={setLastName}
+              onChangeText={setLastName}
             />
-            <LabelInput
-              label="Gender"
+
+            <Text style={[styles.text, local.inputLabel]}>Gender</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.surface }]}
               value={gender}
-              onChange={setGender}
-              placeholder="male / female / other"
+              onChangeText={setGender}
             />
-            <LabelInput
-              label="Phone"
+
+            <Text style={[styles.text, local.inputLabel]}>Phone</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.surface }]}
               value={phone}
-              onChange={setPhone}
-              placeholder="+91 9xxxxxxxxx"
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
             />
 
             <Text style={[styles.text, local.inputLabel]}>
@@ -566,7 +504,6 @@ export default function ProfileScreen(): JSX.Element {
             >
               <Text style={[styles.text]}>{dob || "Select date"}</Text>
             </TouchableOpacity>
-
             {showDatePicker && (
               <DateTimePicker
                 value={dobDate || new Date(1990, 0, 1)}
@@ -579,11 +516,6 @@ export default function ProfileScreen(): JSX.Element {
                 maximumDate={new Date()}
               />
             )}
-
-            <Text style={[styles.text, { marginTop: 8 }]}>Age</Text>
-            <Text style={[styles.text, { fontWeight: "600", marginBottom: 8 }]}>
-              {age !== null && age !== undefined ? `${age} years` : "-"}
-            </Text>
 
             <View style={{ marginTop: 8 }}>
               <AppButton
@@ -603,7 +535,7 @@ export default function ProfileScreen(): JSX.Element {
         )}
       </View>
 
-      {/* Account card */}
+      {/* account */}
       <View style={[styles.card, { marginTop: 12 }]}>
         <Text style={[styles.text, local.sectionTitle]}>Account</Text>
         <View style={local.row}>
@@ -623,6 +555,7 @@ export default function ProfileScreen(): JSX.Element {
               router.replace("/(auth)/login");
             }}
           />
+          {/* bottom "Remove photo" button removed as requested */}
         </View>
       </View>
 
@@ -636,7 +569,6 @@ export default function ProfileScreen(): JSX.Element {
 }
 
 /* -------------------- Styles -------------------- */
-
 const local = StyleSheet.create({
   container: { padding: 12, paddingBottom: 40, backgroundColor: "transparent" },
   headerCard: { padding: 12, marginBottom: 8 },

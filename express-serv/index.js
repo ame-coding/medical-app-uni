@@ -12,6 +12,9 @@ import remindersRouter from "./routes/reminders.js";
 import profileRouter from "./routes/profile.js";
 import recommendationsRouter from "./routes/recommendations.js";
 
+// NEW: chat router (ensure this file exports default router as ESM)
+import chatRouter from "./routes/chat.js";
+
 import db from "./dbfiles/db.js";
 
 dotenv.config();
@@ -47,6 +50,7 @@ app.use("/api/records", recordsRouter);
 app.use("/api/reminders", remindersRouter);
 app.use("/api/profile", profileRouter);
 app.use("/api/recommendations", recommendationsRouter);
+app.use("/api/chat", chatRouter);
 
 // Cleanup expired reminders
 async function cleanupExpiredReminders() {
@@ -76,6 +80,9 @@ app.use((err, _req, res, _next) => {
 // Start server
 app.listen(PORT, "0.0.0.0", async () => {
   console.log(`Server running at http://localhost:${PORT}`);
+
+  // ensure chat DB tables before running periodic jobs
+  await ensureChatTables();
 
   await cleanupExpiredReminders();
   setInterval(cleanupExpiredReminders, 10 * 60 * 1000);

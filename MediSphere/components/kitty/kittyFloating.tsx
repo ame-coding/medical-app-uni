@@ -13,25 +13,25 @@ import {
 } from "react-native";
 import KittyChatbot from "./kittyChatbot";
 import { useTheme } from "../../hooks/useTheme";
-import { useAuth } from "../../providers/AuthProvider"; // adjust path if different
-
-// local asset - ensure this file exists: MediSphere/assets/kitty/idle.png
+import { useAuth } from "../../providers/AuthProvider";
+import { useChatbotContext } from "../../providers/ChatbotProvider";
 const kittyIdle = require("../../assets/kitty/idle.png");
 import TIP_POOL from "../../constants/quickTips";
 
 /**
- * KittyFloating
- * - auto-shows one ephemeral random tip after login (once per session)
- * - single tap opens chat modal
- * - long press opens chat modal
- * - only visible to normal users (user.role === 'user')
+ * KittyFloating (fixed)
+ * - ALL hooks are declared before any conditional returns
+ * - Provider-based open/close state (useChatbotContext)
+ * - Still gates rendering of UI when user is not present, but hooks run always
  */
+
 export default function KittyFloating() {
-  // Always call hooks unconditionally at the top
+  // -------------------------
+  // Hooks (declare first, unconditionally)
+  // -------------------------
   const { styles, colors } = useTheme();
   const { user } = useAuth();
-
-  const [open, setOpen] = useState(false);
+  const chat = useChatbotContext();
 
   // ephemeral bubble state
   const [bubbleText, setBubbleText] = useState<string | null>(null);
@@ -39,8 +39,6 @@ export default function KittyFloating() {
 
   // session-level guard so auto tip shows only once per session
   const hasAutoShownRef = useRef(false);
-
-  // Tip queue to avoid immediate repeats in the session
   const tipQueueRef = useRef<string[]>([]);
 
   // animations
@@ -49,10 +47,9 @@ export default function KittyFloating() {
   const bubbleOpacity = useRef(new Animated.Value(0)).current;
   const bubbleTranslate = useRef(new Animated.Value(6)).current;
 
-  // Guard after hooks: only render UI for authenticated regular users
-  if (!user || user.role?.toLowerCase() !== "user") return null;
-
-  // Build a shuffled queue (no repeats until emptied)
+  // -------------------------
+  // Non-hook helpers (safe to define next)
+  // -------------------------
   function refillQueue() {
     const arr = [...TIP_POOL];
     for (let i = arr.length - 1; i > 0; i--) {
@@ -62,6 +59,51 @@ export default function KittyFloating() {
     tipQueueRef.current = arr;
   }
 
+  function showBubble(message: string, durationMs = 2500) {
+    setBubbleText(message);
+    setBubbleVisible(true);
+    bubbleOpacity.setValue(0);
+    bubbleTranslate.setValue(6);
+
+    Animated.parallel([
+      Animated.timing(bubbleOpacity, {
+        toValue: 1,
+        duration: 220,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(bubbleTranslate, {
+        toValue: 0,
+        duration: 220,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(bubbleOpacity, {
+          toValue: 0,
+          duration: 300,
+          easing: Easing.in(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(bubbleTranslate, {
+          toValue: 6,
+          duration: 300,
+          easing: Easing.in(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setBubbleVisible(false);
+        setBubbleText(null);
+      });
+    }, durationMs);
+  }
+
+  // -------------------------
+  // Effects (also declared before any early return)
+  // -------------------------
   // Start bob + pulse animations
   useEffect(() => {
     const bobAnim = Animated.loop(
@@ -107,49 +149,6 @@ export default function KittyFloating() {
     };
   }, [bob, pulse]);
 
-  // show ephemeral bubble and auto-hide after durationMs
-  function showBubble(message: string, durationMs = 2500) {
-    setBubbleText(message);
-    setBubbleVisible(true);
-    bubbleOpacity.setValue(0);
-    bubbleTranslate.setValue(6);
-
-    Animated.parallel([
-      Animated.timing(bubbleOpacity, {
-        toValue: 1,
-        duration: 220,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-      Animated.timing(bubbleTranslate, {
-        toValue: 0,
-        duration: 220,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(bubbleOpacity, {
-          toValue: 0,
-          duration: 300,
-          easing: Easing.in(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(bubbleTranslate, {
-          toValue: 6,
-          duration: 300,
-          easing: Easing.in(Easing.quad),
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setBubbleVisible(false);
-        setBubbleText(null);
-      });
-    }, durationMs);
-  }
-
   // initialize tip queue once
   useEffect(() => {
     if (!tipQueueRef.current || tipQueueRef.current.length === 0) {
@@ -173,9 +172,15 @@ export default function KittyFloating() {
     return () => clearTimeout(t);
   }, [user]);
 
-  // when user taps once -> open chat modal (do not re-show bubble)
-  const handlePress = () => setOpen(true);
-  const handleLongPress = () => setOpen(true);
+  // -------------------------
+  // Guarded UI render (hooks already declared)
+  // -------------------------
+  // Now it's safe to short-circuit rendering. Hooks order will remain stable.
+  if (!user || user.role?.toLowerCase() !== "user") return null;
+
+  // handlePress uses provider open
+  const handlePress = () => chat.open();
+  const handleLongPress = () => chat.open();
 
   const translateY = bob.interpolate({
     inputRange: [0, 1],
@@ -253,11 +258,11 @@ export default function KittyFloating() {
       </View>
 
       <Modal
-        visible={open}
+        visible={chat.isOpen}
         animationType="slide"
-        onRequestClose={() => setOpen(false)}
+        onRequestClose={() => chat.close()}
       >
-        <KittyChatbot onClose={() => setOpen(false)} />
+        <KittyChatbot onClose={() => chat.close()} />
       </Modal>
     </>
   );

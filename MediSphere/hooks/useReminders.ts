@@ -3,7 +3,7 @@ import { useState, useCallback } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import BASE_URL from "../lib/apiconfig";
 import { authFetch } from "../lib/auth";
-import { cancel } from "./notificationHelper"; // <-- IMPORT CANCEL
+import { cancel } from "./notificationHelper"; // should work with alias exported
 
 export type Reminder = {
   id: number;

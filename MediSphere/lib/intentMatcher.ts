@@ -1,120 +1,96 @@
-// MediSphere/lib/intentMatcher.ts (DEBUG-ENHANCED)
-import intentConfig from "../constants/intentConfig.json";
-import documentTypes from "../constants/documentTypes.json";
+// MediSphere/lib/intentMatcher.ts
+// Simple intent matcher for Kitty (replace this file in your repo)
 
-/**
- * Normalize helper for matching
- */
-function normalize(s: string) {
-  return (s || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9\s()]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+type MatchResult = { intent: string; score: number };
+
+const HELP_PHRASES = [
+  "help",
+  "what can you do",
+  "how can you help",
+  "options",
+  "what can you do for me",
+  "show options",
+  "tell me what you can do",
+];
+
+const GREET_PHRASES = [
+  "hi",
+  "hello",
+  "hey",
+  "hiya",
+  "good morning",
+  "good evening",
+];
+
+const RECOMMEND_PHRASES = [
+  "recommend",
+  "recommend me",
+  "recommendation",
+  "what should i test",
+  "what tests",
+];
+
+const RECENT_PHRASES = [
+  "recent",
+  "recent tests",
+  "show recent",
+  "my recent",
+  "show my tests",
+];
+
+const SET_REMINDER_PHRASES = [
+  "reminder",
+  "set reminder",
+  "remind me",
+  "remind",
+];
+
+function scoreContainsAny(text: string, phrases: string[]) {
+  for (const p of phrases) {
+    if (text.includes(p)) return true;
+  }
+  return false;
 }
 
-export function matchIntent(rawText: string): {
-  intent: string;
-  entity?: string;
-} {
-  console.log("--------------------------------------------------");
-  console.log("[intentMatcher] RAW INPUT:", rawText);
+export function matchIntent(rawText: string): MatchResult {
+  if (!rawText) return { intent: "none", score: 0 };
+  const text = String(rawText).toLowerCase().trim();
 
-  const text = normalize(rawText);
-  console.log("[intentMatcher] NORMALIZED:", text);
-
-  // 1) DOC-TYPE MATCHING
-  for (const docType of Object.keys(documentTypes)) {
-    const normDoc = normalize(docType);
-    const words = normDoc.split(" ");
-
-    const allWordsPresent = words.every((w) => text.includes(w));
-
-    console.log(
-      `[intentMatcher] Checking docType '${docType}' → normalized '${normDoc}'`
-    );
-    console.log("    → words:", words, "present=", allWordsPresent);
-
-    if (allWordsPresent) {
-      const askedRecommend = /(recommend|suggest|advice|what should)/i.test(
-        rawText
-      );
-      console.log(
-        "    ✔ docType MATCHED:",
-        docType,
-        "askedRecommend=",
-        askedRecommend
-      );
-
-      if (askedRecommend) {
-        console.log("    → RETURN show_recommendations for docType:", docType);
-        return { intent: "show_recommendations", entity: docType };
-      }
-      console.log("    → RETURN show_recent_tests for docType:", docType);
-      return { intent: "show_recent_tests", entity: docType };
-    }
+  // exact/help shortcuts
+  if (HELP_PHRASES.some((p) => text === p || text.includes(p))) {
+    return { intent: "help", score: 0.95 };
   }
 
-  // 2) FIELD-LEVEL MATCHING
-  for (const [docType, fields] of Object.entries(documentTypes) as [
-    string,
-    string[]
-  ][]) {
-    for (const field of fields) {
-      const fieldNorm = normalize(field);
-      const triggerWord = fieldNorm.split(" ")[0];
-
-      console.log(
-        `[intentMatcher] Checking field '${field}' (norm='${fieldNorm}') with trigger '${triggerWord}'`
-      );
-
-      if (triggerWord && text.includes(triggerWord)) {
-        const askedRecommend = /(recommend|suggest|advice|what should)/i.test(
-          rawText
-        );
-        console.log(
-          "    ✔ FIELD MATCHED:",
-          field,
-          "→ belongs to docType:",
-          docType,
-          "askedRecommend=",
-          askedRecommend
-        );
-
-        if (askedRecommend) {
-          console.log("    → RETURN show_recommendations for FIELD:", field);
-          return { intent: "show_recommendations", entity: field };
-        }
-
-        console.log(
-          "    → RETURN show_recent_tests for FIELD docType:",
-          docType
-        );
-        return { intent: "show_recent_tests", entity: docType };
-      }
-    }
+  // greetings
+  if (GREET_PHRASES.some((g) => text === g || text.startsWith(g + " "))) {
+    return { intent: "greeting", score: 0.9 };
   }
 
-  // 3) INTENT CONFIG PATTERNS
-  for (const [intentName, patterns] of Object.entries(intentConfig.intents)) {
-    for (const pattern of patterns) {
-      const re = new RegExp(pattern, "i");
-      if (re.test(rawText)) {
-        console.log(
-          `[intentMatcher] ✔ Pattern Match → intent '${intentName}' via ${pattern}`
-        );
-        return { intent: intentName };
-      }
-    }
+  // show recommendations (explicit)
+  if (RECOMMEND_PHRASES.some((p) => text.includes(p))) {
+    return { intent: "show_recommendations", score: 0.9 };
   }
 
-  // 4) GREETING FALLBACK
-  if (/(hi|hello|hey|yo)/i.test(rawText)) {
-    console.log("[intentMatcher] ✔ Greeting matched → RETURN greeting");
-    return { intent: "greeting" };
+  // show recent tests
+  if (RECENT_PHRASES.some((p) => text.includes(p))) {
+    return { intent: "show_recent_tests", score: 0.9 };
   }
 
-  // 5) UNKNOWN INTENT
-  console.log("[intentMatcher] ❗ NO MATCH FOUND → RETURN unknown");
-  return { intent: "unknown" };
+  // set reminder
+  if (SET_REMINDER_PHRASES.some((p) => text.includes(p))) {
+    return { intent: "set_reminder", score: 0.9 };
+  }
+
+  // view record direct phrase (e.g., "view record 12", "open record 12")
+  const viewMatch = text.match(
+    /\b(view|open)\b.*\b(record|test|report)\b.*?(\d{1,6})?/
+  );
+  if (viewMatch) {
+    return { intent: "view_record", score: 0.9 };
+  }
+
+  // fallback: low confidence none
+  return { intent: "none", score: 0.1 };
 }
+
+export default matchIntent;

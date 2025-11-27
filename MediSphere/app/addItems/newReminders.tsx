@@ -19,12 +19,14 @@ import {
   schedule,
   ensurePermissionsAndChannel,
 } from "../../hooks/notificationHelper";
+import { useChatbotContext } from "../../providers/ChatbotProvider";
 
 export default function NewReminders() {
   const { colors, styles, sizes } = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams() as Record<string, any>;
   const { prefill, date: dateParam } = params || {};
+  const chat = useChatbotContext();
 
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
@@ -37,7 +39,6 @@ export default function NewReminders() {
   const [loading, setLoading] = useState(false);
   const [prefillLoading, setPrefillLoading] = useState<boolean>(false);
 
-  // If a date param is provided, set it (try decodeURIComponent)
   useEffect(() => {
     if (dateParam) {
       try {
@@ -50,7 +51,6 @@ export default function NewReminders() {
     }
   }, [dateParam]);
 
-  // If prefill id provided, fetch record and prefill fields
   useEffect(() => {
     if (!prefill) return;
     (async () => {
@@ -69,7 +69,6 @@ export default function NewReminders() {
         if (record) {
           setTitle(record.record_title || "");
           setDesc(record.description || "");
-          // if record.date exists and no explicit date param was given, use record.date
           if (record.date && !dateParam) {
             const d = new Date(record.date);
             if (!Number.isNaN(d.getTime())) setDate(d);
@@ -82,6 +81,21 @@ export default function NewReminders() {
       }
     })();
   }, [prefill, dateParam]);
+
+  useEffect(() => {
+    const shouldReopen = String(params?.reopenChat ?? "") === "1";
+    if (!shouldReopen) return;
+
+    return () => {
+      setTimeout(() => {
+        try {
+          chat.open();
+        } catch (e) {
+          console.warn("[newReminders] reopen chat failed", e);
+        }
+      }, 120);
+    };
+  }, [params?.reopenChat]);
 
   const onChangeDate = (event: any, selectedDate?: Date) => {
     setShowDatePicker(false);
@@ -141,8 +155,20 @@ export default function NewReminders() {
       }
 
       try {
-        // 3. Schedule local notification on the device
-        const localId = await schedule(reminder);
+        // 3. Schedule native local notification on the device
+        // attach deep-link route and remote id to notification payload
+        const payloadData = {
+          route: "/(tabs)/reminders",
+          reminderId: reminder.id,
+        };
+
+        // ensure TS accepts two-arg schedule signature
+        const scheduleTyped = schedule as unknown as (
+          reminderObj: any,
+          data?: Record<string, any> | null
+        ) => Promise<string>;
+
+        const localId = await scheduleTyped(reminder, payloadData);
 
         // 4. Update the server with the new local notification ID
         await authFetch(`${BASE_URL}/reminders/${reminder.id}`, {
@@ -164,7 +190,6 @@ export default function NewReminders() {
     }
   };
 
-  // show loading spinner while fetching prefill
   if (prefillLoading)
     return (
       <View
@@ -206,7 +231,6 @@ export default function NewReminders() {
           onChangeText={setDesc}
         />
 
-        {/* Date & Time */}
         {Platform.OS === "web" ? (
           <input
             type="datetime-local"
