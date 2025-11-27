@@ -18,6 +18,13 @@ import { useRouter } from "expo-router";
 
 const kittyIdle = require("../../assets/kitty/idle.png");
 
+function deriveMetaFromItem(item: any) {
+  if (!item) return undefined;
+  const maybeId =
+    item.recordId ?? item.id ?? item._id ?? item.record?.id ?? item.record?._id;
+  return { recordId: maybeId, record: item };
+}
+
 export default function KittyChatbot({ onClose }: { onClose?: () => void }) {
   const { styles, colors } = useTheme();
   const { messages, sendMessage, handleSuggestion } = useChatbot();
@@ -26,22 +33,37 @@ export default function KittyChatbot({ onClose }: { onClose?: () => void }) {
 
   const inputRef = useRef<TextInput | null>(null);
 
+  // guard to avoid handling same navigate payload multiple times
+  const handledNavRef = useRef<Record<string, boolean>>({});
+
   useEffect(() => {
     console.log("🐱 [KittyChatbot] Mounted");
     return () => console.log("🐱 [KittyChatbot] Unmounted");
   }, []);
 
-  // Listen for navigateTo payloads (goto-record / goto-rem)
+  // Listen for navigateTo payloads on new bot messages
   useEffect(() => {
     if (!messages || messages.length === 0) return;
     const last = messages[messages.length - 1];
     if (last.from !== "bot") return;
-
     const nav = last.payload?.navigateTo;
     if (!nav) return;
 
-    console.info("[KittyChatbot] navigateTo payload found:", nav);
+    // avoid repeating the same nav payload multiple times
+    const navKey = `${nav}_${String(last.id)}`;
+    if (handledNavRef.current[navKey]) {
+      return;
+    }
+    handledNavRef.current[navKey] = true;
 
+    console.info(
+      "[KittyChatbot] navigateTo payload found:",
+      nav,
+      "payload:",
+      last.payload
+    );
+
+    // parse path and query parts
     let [rawPath, rawQuery] = String(nav).split("?");
     if (!rawPath.startsWith("/")) rawPath = "/" + rawPath;
 
@@ -53,18 +75,58 @@ export default function KittyChatbot({ onClose }: { onClose?: () => void }) {
       });
     }
 
+    // perform navigation safely
     try {
-      if (params.id) {
-        router.push({ pathname: rawPath, params: { id: params.id } } as any);
-      } else if (params.prefill) {
-        router.push({
-          pathname: rawPath,
-          params: { prefill: params.prefill, date: params.date || "" },
-        } as any);
+      const doNavigate = () => {
+        // if already on same route & params, skip navigation
+        // naive check: if pathname substring matches, avoid double push
+        try {
+          // router.pathname may not exist in all router versions; guard it
+          const cur = (router as any).pathname ?? "";
+          if (rawPath && cur && cur.includes(rawPath)) {
+            // still attempt a replace with params to ensure screen state updates
+            (router as any).replace
+              ? (router as any).replace({ pathname: rawPath, params } as any)
+              : (router as any).push({ pathname: rawPath, params } as any);
+            return;
+          }
+        } catch (e) {
+          // ignore path-check errors and proceed to push
+        }
+
+        // Use push with pathname & params when available, else fallback to string
+        if (Object.keys(params).length) {
+          (router as any).push
+            ? (router as any).push({ pathname: rawPath, params } as any)
+            : (router as any).push(
+                `${rawPath}${rawQuery ? `?${rawQuery}` : ""}`
+              );
+        } else {
+          (router as any).push
+            ? (router as any).push(rawPath as any)
+            : (router as any).push(`${rawPath}`);
+        }
+      };
+
+      if (last.payload?.closeChat) {
+        // close the chat first so modal unmounts, then navigate shortly after
+        try {
+          onClose?.();
+        } catch (e) {
+          console.warn("[KittyChatbot] onClose threw:", e);
+        }
+        // small timeout lets modal close before navigation; 50ms is enough
+        setTimeout(() => {
+          try {
+            doNavigate();
+          } catch (e) {
+            console.error("[KittyChatbot] navigation failed:", e);
+          }
+        }, 50);
       } else {
-        router.push((rawPath + (rawQuery ? `?${rawQuery}` : "")) as any);
+        // immediate navigate
+        doNavigate();
       }
-      onClose?.();
     } catch (e) {
       console.error("[KittyChatbot] Router push failed:", e);
     }
@@ -79,18 +141,6 @@ export default function KittyChatbot({ onClose }: { onClose?: () => void }) {
     inputRef.current?.blur();
   };
 
-  // derive meta helper
-  function deriveMetaFromItem(item: any) {
-    if (!item) return undefined;
-    const maybeId =
-      item.recordId ??
-      item.id ??
-      item._id ??
-      item.record?.id ??
-      item.record?._id;
-    return { recordId: maybeId, record: item };
-  }
-
   const onQuickReply = (label: string, incomingMeta?: any) => {
     console.log(
       "[KittyChatbot] quick reply tapped:",
@@ -101,17 +151,22 @@ export default function KittyChatbot({ onClose }: { onClose?: () => void }) {
   };
 
   // Payload preview: show buttons differently if item is recommendation
-  const PayloadPreview: React.FC<{ payload: any[] }> = ({ payload }) => {
+  const PayloadPreview: React.FC<{ payload: any[]; parentMessage?: any }> = ({
+    payload,
+    parentMessage,
+  }) => {
     if (!Array.isArray(payload) || payload.length === 0) return null;
+
+    // do not show "Show all" for the `recent` flow (parent.id === 'recent')
+    const isRecent = String(parentMessage?.id || "")
+      .toLowerCase()
+      .includes("recent");
+
     return (
       <View style={{ marginTop: 8 }}>
         {payload.slice(0, 3).map((p: any, idx: number) => {
           const meta = deriveMetaFromItem(p);
           const isRec = !!p.__isRecommendation;
-          console.debug(
-            `[KittyChatbot] PayloadPreview item ${idx} isRec=${isRec} meta.recordId=`,
-            meta?.recordId
-          );
 
           return (
             <View
@@ -166,7 +221,8 @@ export default function KittyChatbot({ onClose }: { onClose?: () => void }) {
             </View>
           );
         })}
-        {payload.length > 3 && (
+
+        {!isRecent && payload.length > 3 && (
           <TouchableOpacity
             onPress={() => onQuickReply("Show all records", { list: payload })}
             style={{ marginTop: 6 }}
@@ -206,6 +262,8 @@ export default function KittyChatbot({ onClose }: { onClose?: () => void }) {
           <TouchableOpacity
             style={{ marginLeft: "auto", padding: 8 }}
             onPress={() => onClose?.()}
+            accessibilityLabel="Close Kitty chat"
+            testID="kitty-close-btn"
           >
             <Text style={[styles.text, { color: colors.muted }]}>Close</Text>
           </TouchableOpacity>
@@ -233,17 +291,12 @@ export default function KittyChatbot({ onClose }: { onClose?: () => void }) {
                     meta = deriveMetaFromItem(first);
                     (meta as any).list = item.payload;
                   }
-                  console.debug(
-                    "[KittyChatbot] MessageBubble onQuickReply ->",
-                    q,
-                    meta
-                  );
                   onQuickReply(q, meta);
                 }}
               />
 
               {item.payload && Array.isArray(item.payload) ? (
-                <PayloadPreview payload={item.payload} />
+                <PayloadPreview payload={item.payload} parentMessage={item} />
               ) : null}
             </View>
           )}
@@ -270,7 +323,8 @@ export default function KittyChatbot({ onClose }: { onClose?: () => void }) {
           />
           <TouchableOpacity
             onPress={handleSubmit}
-            style={[localStyles.sendBtn, { backgroundColor: colors.primary }]}
+            style={localStyles.sendBtn}
+            accessibilityLabel="Send message"
           >
             <Text style={[styles.buttonText]}>Send</Text>
           </TouchableOpacity>
@@ -285,5 +339,6 @@ const localStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
+    backgroundColor: "transparent", // parent styles will override color
   },
 });

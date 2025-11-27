@@ -19,11 +19,15 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { getToken, authFetch } from "../../lib/auth";
 import { downloadWithAuth } from "../../lib/downloadHelper";
 import BASE_URL from "../../lib/apiconfig";
+import { useChatbotContext } from "../../providers/ChatbotProvider"; // NEW import
 
 export default function ViewRecord() {
   const { styles, colors } = useTheme();
   const router = useRouter();
-  const { id } = useLocalSearchParams();
+  const params = useLocalSearchParams();
+  const { id } = params;
+  const chat = useChatbotContext(); // NEW: provider
+
   const [record, setRecord] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -34,6 +38,24 @@ export default function ViewRecord() {
     fetchRecord();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // If reopenChat=1 is present in params, when this screen unmounts we should reopen Kitty.
+  useEffect(() => {
+    const shouldReopen = String(params?.reopenChat ?? "") === "1";
+    if (!shouldReopen) return;
+
+    return () => {
+      // delay slightly so navigation transition finishes before modal opens
+      setTimeout(() => {
+        try {
+          chat.open();
+        } catch (e) {
+          console.warn("[viewRecord] reopen chat failed", e);
+        }
+      }, 120);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params?.reopenChat]);
 
   const fetchRecord = async () => {
     try {

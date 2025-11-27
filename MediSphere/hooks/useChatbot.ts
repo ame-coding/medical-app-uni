@@ -1,7 +1,8 @@
 // MediSphere/hooks/useChatbot.ts
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../providers/AuthProvider";
-import { matchIntent } from "../lib/intentMatcher";
+// Ensure your intentMatcher exposes a default function
+import matchIntent from "../lib/intentMatcher";
 import intentConfig from "../constants/intentConfig.json";
 import documentTypes from "../constants/documentTypes.json";
 import BASE_URL from "../lib/apiconfig";
@@ -39,23 +40,35 @@ function bot(id: string, text: string, payload?: any, suggestions?: string[]) {
 export default function useChatbot() {
   const { user } = useAuth();
 
+  const CORE_SUGGESTIONS: string[] = intentConfig?.defaultSuggestions ?? [
+    "Recommend me",
+    "Show recent tests",
+    "Help",
+  ];
+
   const [messages, setMessages] = useState<BotMsg[]>([
     {
       id: `b-hello`,
       from: "bot",
       text: "Hi, I'm Kitty 😺 — I can show your tests or set reminders.",
-      // changed "Show recommendations" -> "Recommend me"
-      suggestions: ["Recommend me", "Show recent tests", "Help"],
+      suggestions: CORE_SUGGESTIONS,
     },
   ]);
 
   useEffect(() => {
-    // show the popup / initial followup handled elsewhere if needed
+    // placeholder if you want to react to user changes
   }, [user]);
 
   const addMessage = useCallback((m: BotMsg) => {
     console.log("[useChatbot] Add message:", m);
     setMessages((s) => [...s, m]);
+  }, []);
+
+  // Remove any loading messages (id includes 'loading')
+  const removeLoadingMessages = useCallback(() => {
+    setMessages((s) =>
+      s.filter((it) => !String(it.id).toLowerCase().includes("loading"))
+    );
   }, []);
 
   const getDocTypesList = useCallback(
@@ -70,10 +83,11 @@ export default function useChatbot() {
         "doctypes",
         "Which type would you like recommendations for?",
         { docTypeFields: documentTypes },
-        types
+        // limit doc types shown so the UI doesn't overflow; always append core options
+        [...types.slice(0, 12), ...CORE_SUGGESTIONS]
       )
     );
-  }, [addMessage, getDocTypesList]);
+  }, [addMessage, getDocTypesList, CORE_SUGGESTIONS]);
 
   const fetchRecommendations = useCallback(
     async (docType?: string) => {
@@ -152,7 +166,6 @@ export default function useChatbot() {
 
       // Accept "recommend me" explicitly in addition to intent matcher
       if (/recommend\s*me/i.test(text)) {
-        console.log("[useChatbot] text matched 'recommend me' direct check");
         pushDocTypes();
         return;
       }
@@ -166,17 +179,19 @@ export default function useChatbot() {
       }
 
       if (matched.intent === "show_recent_tests") {
-        addMessage(bot("loading", "Fetching your recent tests..."));
+        // show loading bot message (typing animation will render)
+        addMessage(
+          bot("loading", "Fetching your recent tests...", undefined, undefined)
+        );
+
         const list = await fetchRecent();
+
+        // remove loading messages before adding results
+        removeLoadingMessages();
 
         if (!list.length) {
           addMessage(
-            bot(
-              "none",
-              "No recent records found.",
-              undefined,
-              intentConfig.defaultSuggestions
-            )
+            bot("none", "No recent records found.", undefined, CORE_SUGGESTIONS)
           );
           return;
         }
@@ -187,7 +202,21 @@ export default function useChatbot() {
             "recent",
             `Found ${list.length} recent record(s).`,
             list.slice(0, 10),
-            ["View record", "Set reminder"]
+            // removed 'Show all' per your earlier request; include core options after results
+            ["View record", "Set reminder", ...CORE_SUGGESTIONS]
+          )
+        );
+        return;
+      }
+
+      // explicit help intent
+      if (matched.intent === "help") {
+        addMessage(
+          bot(
+            "help",
+            "I can: recommend tests, show your recent tests, open a record, or set reminders. Try 'Recommend me' or 'Show recent tests'.",
+            undefined,
+            CORE_SUGGESTIONS
           )
         );
         return;
@@ -199,7 +228,7 @@ export default function useChatbot() {
             "greet",
             "Hey! I can give recommendations or show recent tests.",
             undefined,
-            intentConfig.defaultSuggestions
+            CORE_SUGGESTIONS
           )
         );
         return;
@@ -210,21 +239,27 @@ export default function useChatbot() {
           "fallback",
           "I didn't understand that — try 'Recommend me' or 'Show recent tests'.",
           undefined,
-          intentConfig.defaultSuggestions
+          CORE_SUGGESTIONS
         )
       );
     },
-    [addMessage, fetchRecent, pushDocTypes]
+    [
+      addMessage,
+      fetchRecent,
+      pushDocTypes,
+      removeLoadingMessages,
+      CORE_SUGGESTIONS,
+    ]
   );
 
   // ---------------------
-  // Quick reply handling
+  // Quick reply handling (chips)
   // ---------------------
   const handleSuggestion = useCallback(
     async (label: string, meta?: any) => {
       console.log("[useChatbot] handleSuggestion:", label, meta);
 
-      const l = label.trim();
+      const l = String(label || "").trim();
       const docTypes = getDocTypesList();
 
       // If user selected a docType label (e.g., "MRI", "Blood Test")
@@ -239,13 +274,16 @@ export default function useChatbot() {
 
         const recs = await fetchRecommendations(l);
 
+        // remove loading messages
+        removeLoadingMessages();
+
         if (!recs.length) {
           addMessage(
             bot(
               "norec",
               `No recommendations found for ${l}.`,
               undefined,
-              intentConfig.defaultSuggestions
+              CORE_SUGGESTIONS
             )
           );
           return;
@@ -262,14 +300,27 @@ export default function useChatbot() {
             "ok",
             `Found ${wrapped.length} recommendation(s) for ${l}.`,
             wrapped,
-            // recommendations: show only "View record"
-            ["View record"]
+            // "View record" + core suggestions
+            ["View record", ...CORE_SUGGESTIONS]
           )
         );
         return;
       }
 
       const lc = l.toLowerCase();
+
+      // direct help chip handling — this fixes the problem you saw
+      if (lc === "help" || lc.includes("help")) {
+        addMessage(
+          bot(
+            "help",
+            "I can: recommend tests, show your recent tests, open a record, or set reminders. Try 'Recommend me' or 'Show recent tests'.",
+            undefined,
+            CORE_SUGGESTIONS
+          )
+        );
+        return;
+      }
 
       if (lc.includes("recommend")) {
         pushDocTypes();
@@ -282,7 +333,7 @@ export default function useChatbot() {
             "tips",
             "General tips: hydrate, sleep 7–8 hours, balanced diet, daily movement.",
             undefined,
-            ["Diet tips", "Exercise tips"]
+            ["Diet tips", "Exercise tips", ...CORE_SUGGESTIONS]
           )
         );
         return;
@@ -299,17 +350,19 @@ export default function useChatbot() {
               "missing-id",
               "Sorry — I couldn't find the record id to open. Try tapping the View button on the card instead.",
               undefined,
-              intentConfig.defaultSuggestions
+              CORE_SUGGESTIONS
             )
           );
           return;
         }
 
         addMessage(
-          bot("goto-record", `Opening record ${id}...`, {
+          bot("goto-record", "", {
             navigateTo: `/addItems/viewRecord?id=${encodeURIComponent(
               String(id)
             )}`,
+            closeChat: true,
+            meta: { recordId: id },
           })
         );
         return;
@@ -323,19 +376,22 @@ export default function useChatbot() {
         const encodedDate = recDate ? encodeURIComponent(String(recDate)) : "";
         const encodedPrefill = id ? encodeURIComponent(String(id)) : "";
 
-        const queryParts = [];
+        const queryParts: string[] = [];
         if (encodedPrefill) queryParts.push(`prefill=${encodedPrefill}`);
         if (encodedDate) queryParts.push(`date=${encodedDate}`);
         const query = queryParts.length ? `?${queryParts.join("&")}` : "";
 
         addMessage(
-          bot("goto-rem", "Opening reminder creation...", {
+          bot("goto-rem", "", {
             navigateTo: `/addItems/newReminders${query}`,
+            closeChat: true,
+            meta: { recordId: id },
           })
         );
         return;
       }
 
+      // fallback: pass through as typed text (this will also hit sendMessage and use intentMatcher there)
       sendMessage(l);
     },
     [
@@ -344,6 +400,8 @@ export default function useChatbot() {
       getDocTypesList,
       pushDocTypes,
       sendMessage,
+      removeLoadingMessages,
+      CORE_SUGGESTIONS,
     ]
   );
 
